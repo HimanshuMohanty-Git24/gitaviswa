@@ -1,0 +1,62 @@
+{
+  "name": "gitaviswa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitaViswa (गीताविश्व) — an interactive knowledge graph, hybrid GraphRAG companion and personal mind mapper for the Bhagavad Gita.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "data": "node scripts/build-gita-knowledge-graph.mjs",
+    "data:offline": "node scripts/build-gita-knowledge-graph.mjs --offline",
+    "data:embeddings": "node scripts/build-embeddings.mjs",
+    "data:verify": "node scripts/verify-graph.mjs"
+  },
+  "dependencies": {
+    "@orama/orama": "^3.1.18",
+    "@xyflow/react": "^12.12.0",
+    "dagre": "^0.8.5",
+    "framer-motion": "^14.7.1",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-shortest-path": "^2.1.0",
+    "graphology-traversal": "^0.3.1",
+    "idb-keyval": "^6.3.0",
+    "lucide-react": "^1.64.0",
+    "neo4j-driver": "^6.3.0",
+    "next": "^15.5.28",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-force-graph-3d": "^1.29.2",
+    "three": "^0.186.1",
+    "three-spritetext": "^1.10.0",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/dagre": "^0.7.54",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.186.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.28",
+    "graphology-types": "^0.24.8",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  },
+  "allowScripts": {
+    "sharp@0.35.5": true
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.3.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.32"
+  }
+}

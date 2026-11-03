@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gita Vishwas — implementation handoff</title><style>
+:root { color-scheme: light; --ink:#25231e; --muted:#68645b; --accent:#865414; --line:#ded9ce; --paper:#fcfbf7; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; scroll-padding-top:32px; }
+body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 'Segoe UI',Arial,sans-serif; }
+.top { border-bottom:1px solid var(--line); padding:22px 5vw; display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; font-size:14px; }
+.top strong { letter-spacing:.03em; }
+.top a { margin-left:20px; }
+.layout { display:grid; grid-template-columns:255px minmax(0,960px); gap:56px; max-width:1375px; margin:auto; padding:52px 32px 100px; }
+aside { font-size:13px; position:sticky; top:25px; height:calc(100vh - 55px); overflow:auto; padding-right:14px; }
+aside .toc ul { list-style:none; padding-left:12px; line-height:1.5; }
+aside .toc>ul { padding-left:0; }
+aside .toc li { margin:9px 0; }
+aside .toc>ul>li>ul>li>ul { display:none; }
+aside a { color:var(--muted); text-decoration:none; }
+aside a:hover { color:var(--accent); text-decoration:underline; }
+main { min-width:0; }
+h1,h2,h3 { line-height:1.25; letter-spacing:-.025em; }
+h1 { font-size:clamp(31px,4vw,48px); margin:0 0 30px; max-width:23ch; }
+h2 { font-size:28px; margin:64px 0 22px; border-top:1px solid var(--line); padding-top:25px; }
+h3 { font-size:21px; margin:40px 0 16px; }
+p { margin:16px 0; }
+a { color:var(--accent); text-underline-offset:3px; }
+strong { font-weight:650; }
+blockquote { margin:28px 0; padding:15px 24px; border-left:3px solid #b78139; background:#f1ede3; font:23px/1.55 Georgia,serif; }
+blockquote p { margin:0; }
+ul,ol { padding-left:25px; }
+li { margin:9px 0; }
+table { border-collapse:collapse; width:100%; font-size:14px; line-height:1.6; margin:25px 0; }
+th { background:#eee9df; font-weight:650; text-align:left; }
+th,td { border-bottom:1px solid var(--line); padding:13px 14px; vertical-align:top; }
+tr:nth-child(even) td { background:#f7f4ec; }
+.table-wrap { overflow-x:auto; }
+code { background:#eeeae1; padding:2px 5px; border-radius:3px; font: .88em/1.6 Consolas,monospace; overflow-wrap:anywhere; }
+pre { background:#eeeae1; padding:20px; overflow:auto; border:1px solid var(--line); }
+pre code { background:none; padding:0; overflow-wrap:normal; }
+.stamp { margin:0 0 30px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.1em; }
+.gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px; }
+.gallery figure { margin:0; border:1px solid var(--line); padding:12px; background:white; }
+.gallery img { width:100%; max-height:620px; object-fit:contain; background:#111; display:block; }
+figcaption { font-size:13px; line-height:1.5; margin-top:12px; overflow-wrap:anywhere; color:var(--muted); }
+footer { color:var(--muted); border-top:1px solid var(--line); padding-top:25px; margin-top:55px; font-size:13px; }
+:focus-visible { outline:3px solid #9a641e; outline-offset:4px; }
+@media(max-width:1000px) { .layout { grid-template-columns:1fr; padding:30px 24px 70px; } aside { position:static; height:auto; max-height:240px; border-bottom:1px solid var(--line); } aside .toc>ul>li>ul { display:none; } }
+@media(max-width:600px) { body{font-size:16px;} .layout { padding:28px 18px 60px; } .gallery { grid-template-columns:1fr; } h2{font-size:25px;} th,td {padding:10px;} .top a {margin-left:0;margin-right:15px;} }
+@media print { .top,aside {display:none;} .layout{display:block;padding:0;} body{background:white;font-size:11pt;} h1{font-size:28pt;} h2{break-after:avoid;} h3{break-after:avoid;} a{color:inherit;} .gallery{display:block;} figure{break-inside:avoid;margin-bottom:25px!important;} .gallery img{max-height:550px;} }
+</style></head>
+<body><header class="top"><strong>GITA VISHWAS · PRODUCT REVIEW</strong><nav aria-label="Report files"><a href="PRODUCT-AUDIT.html">Full audit</a><a href="IMPLEMENTATION-HANDOFF.html">Agent handoff</a><a href="IMPLEMENTATION-HANDOFF.md">Markdown source</a></nav></header>
+<div class="layout"><aside aria-label="Contents"><strong>CONTENTS</strong><div class="toc">
+<ul>
+<li><a href="#implementation-handoff-gita-vishwas-gitavisva">Implementation handoff — Gita Vishwas / GitaViśva</a><ul>
+<li><a href="#product-outcome">Product outcome</a></li>
+<li><a href="#implementation-constraints">Implementation constraints</a></li>
+<li><a href="#recommended-execution-order">Recommended execution order</a></li>
+<li><a href="#t01-p0-make-drafts-and-saves-trustworthy">T01 · P0 · Make drafts and saves trustworthy</a></li>
+<li><a href="#t02-p1-save-any-thought-without-interpreting-it-first">T02 · P1 · Save any thought without interpreting it first</a></li>
+<li><a href="#t03-p1-introduce-an-explicit-personal-connection-model">T03 · P1 · Introduce an explicit personal-connection model</a></li>
+<li><a href="#t04-p1-let-the-person-review-suggested-meaning">T04 · P1 · Let the person review suggested meaning</a></li>
+<li><a href="#t05-p1-build-thought-detail-editing-and-recovery">T05 · P1 · Build thought detail, editing, and recovery</a></li>
+<li><a href="#t06-p1-make-personal-writing-locally-searchable">T06 · P1 · Make personal writing locally searchable</a></li>
+<li><a href="#t07-p1-build-a-small-understandable-personal-map">T07 · P1 · Build a small understandable personal map</a></li>
+<li><a href="#t08-p1-add-a-beginner-learning-loop-and-verse-reflection">T08 · P1 · Add a beginner learning loop and verse reflection</a></li>
+<li><a href="#t09-p1p2-improve-ask-context-formatting-and-takeaway-saving">T09 · P1/P2 · Improve Ask context, formatting, and takeaway saving</a></li>
+<li><a href="#t10-p1-fix-mobile-reflow-and-control-hierarchy">T10 · P1 · Fix mobile reflow and control hierarchy</a></li>
+<li><a href="#t11-p1-fix-modal-and-keyboard-accessibility">T11 · P1 · Fix modal and keyboard accessibility</a></li>
+<li><a href="#t12-p2-define-navigation-language-and-daily-settings">T12 · P2 · Define navigation, language, and daily settings</a></li>
+<li><a href="#t13-p1p2-align-privacy-language-and-backup-custody">T13 · P1/P2 · Align privacy language and backup custody</a></li>
+<li><a href="#t14-p2-verify-production-offline-audio-and-device-behavior">T14 · P2 · Verify production offline, audio, and device behavior</a></li>
+<li><a href="#t15-p2-review-content-and-validate-with-people">T15 · P2 · Review content and validate with people</a></li>
+<li><a href="#t16-p3-prepare-a-demonstrable-product-story">T16 · P3 · Prepare a demonstrable product story</a></li>
+<li><a href="#minimum-regression-and-evaluation-set">Minimum regression and evaluation set</a><ul>
+<li><a href="#protect-writing">Protect writing</a></li>
+<li><a href="#respect-meaning">Respect meaning</a></li>
+<li><a href="#learn-and-navigate">Learn and navigate</a></li>
+</ul>
+</li>
+<li><a href="#definition-of-the-next-credible-milestone">Definition of the next credible milestone</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</aside><main><div class="stamp">3 November 2026 · Localhost product inspection</div><h1 id="implementation-handoff-gita-vishwas-gitavisva">Implementation handoff — Gita Vishwas / GitaViśva</h1>
+<p>Read <a href="PRODUCT-AUDIT.html">PRODUCT-AUDIT.md</a> for evidence, context, and the intended experience. This file turns its findings into work packages. It is a proposed backlog, not authorization to publish, introduce a remote journal service, or replace the current application wholesale.</p>
+<h2 id="product-outcome">Product outcome</h2>
+<p>A person can save any thought, learn from an inspectable teaching if they choose, record their own interpretation, see meaningful connections, and revisit their thinking later. A thought with no scripture connection is a valid, complete object.</p>
+<h2 id="implementation-constraints">Implementation constraints</h2>
+<ul>
+<li>Keep the current Next.js/React/TypeScript stack and useful existing reader, graph, audio, retrieval, and local-storage capabilities.</li>
+<li>Protect existing IndexedDB entries. Introduce schema versions and backward-compatible migrations before changing stored data. Do not reset the database during development to hide migration problems.</li>
+<li>Preserve original user text as the source of truth. AI output is separate, attributed, optional material.</li>
+<li>Separate suggested from user-approved relationships. A graph edge is not evidence that a user endorses an interpretation.</li>
+<li>Do not make a cloud account, API key, emotional score, or verse match a condition of saving.</li>
+<li>Do not send journal text, private labels, or conversation content into analytics. Remote AI receives only the explicitly selected context after understandable disclosure.</li>
+<li>Keep public scripture nodes and personal annotations separate. User edits must not rewrite canonical/source data.</li>
+<li>Preserve deep-link compatibility for current <code>view</code>, <code>chapter</code>, and <code>node</code> URLs while improving navigation.</li>
+<li>Use meaningful behavioral and migration checks for changes that protect writing. Avoid tests that merely reproduce component markup.</li>
+<li>Implement a narrow complete journey before undertaking a broad visual redesign. Keep the current palette and type foundation unless user testing identifies a specific issue.</li>
+</ul>
+<h2 id="recommended-execution-order">Recommended execution order</h2>
+<p><strong>Track 1, first:</strong> T01 → T02 → T03 → T04. Establish reliable writing and a migration-safe personal model.</p>
+<p><strong>Track 2, after that foundation:</strong> T05 → T06 → T07. Complete the personal loop and the small map.</p>
+<p><strong>Track 3:</strong> T08 and T09 establish approachable learning and the Ask handoff.</p>
+<p><strong>Quality throughout:</strong> T10, T11, T12, and T13 cover reflow, accessibility, navigation, language, and custody.</p>
+<p><strong>Before broader release:</strong> T14 and T15 validate offline/device behavior, editorial quality, and usability. T16 prepares the story only after its demonstrated features exist.</p>
+<p>These tracks identify dependencies; they do not request subagents or prescribe a staffing model. Effort labels below are relative uncertainty/scope estimates, not time commitments.</p>
+<h2 id="t01-p0-make-drafts-and-saves-trustworthy">T01 · P0 · Make drafts and saves trustworthy</h2>
+<p><strong>Findings:</strong> F04, F05, F21. <strong>Effort:</strong> M. <strong>Dependency:</strong> none.</p>
+<p><strong>Files:</strong> <code>src/components/manas/PersonalMindMapper.tsx</code>, <code>src/lib/store/personalStore.ts</code>, <code>src/lib/store/useGitaStore.ts</code>, <code>src/lib/types.ts</code>.</p>
+<p><strong>Work:</strong></p>
+<ol>
+<li>Move the writing draft into a local durable store with an explicit draft ID and update timestamp.</li>
+<li>Persist writing independently of analysis, with a bounded debounce and a flush strategy for task transitions where practical.</li>
+<li>Save the current text version. Bind generated suggestions to the text version they analyzed; invalidate or mark them stale after edits.</li>
+<li>Preserve text on save failure. Surface saving, saved, and failure states without false success.</li>
+<li>Prevent accidental duplicate entries from double taps or overlapping saves.</li>
+<li>Distinguish load failure from a legitimately empty history.</li>
+</ol>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Type a unique paragraph, switch Read/Ask/Explore, and return: all text remains.</li>
+<li>Reload while a draft exists: it is restored and identified as a draft.</li>
+<li>Analyze A, change to B, save: B is saved; outdated suggestions are not silently confirmed for B.</li>
+<li>Simulate write failure: the composer retains B, shows a retry path, and does not announce success.</li>
+<li>Repeated Save activation creates one intended entry.</li>
+<li>Existing saved entries still load unchanged.</li>
+</ul>
+<p><strong>Test emphasis:</strong> persistence and interruption behavior, rejected storage operations, duplicate saves, and migration. Do not rely only on a component snapshot.</p>
+<h2 id="t02-p1-save-any-thought-without-interpreting-it-first">T02 · P1 · Save any thought without interpreting it first</h2>
+<p><strong>Findings:</strong> F02, F03, F06. <strong>Effort:</strong> M. <strong>Dependency:</strong> T01.</p>
+<p><strong>Work:</strong> Make Save thought the immediate primary action. Make connection exploration optional. Remove the default heaviness value from new entries. Permit untyped writing and an optional check-in. Include examples of an idea, gratitude, a verse question, and an everyday difficulty.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>An unrelated thought saves with no emotions, dilemmas, verses, or intensity.</li>
+<li>Skipped check-in is stored as absent, not as zero or Heavy.</li>
+<li>No-match writing has a complete success state and a valid personal node.</li>
+<li>Core save works without an AI provider or network.</li>
+<li>Existing entries with an intensity value keep their historical value; migration does not pretend the value was explicitly chosen.</li>
+</ul>
+<h2 id="t03-p1-introduce-an-explicit-personal-connection-model">T03 · P1 · Introduce an explicit personal-connection model</h2>
+<p><strong>Findings:</strong> F02, F09, F18, F19. <strong>Effort:</strong> L. <strong>Dependency:</strong> T01; coordinate with T02.</p>
+<p><strong>Files:</strong> <code>types.ts</code>, <code>graphStore.ts</code>, <code>personalStore.ts</code>, personal mapping and graph inspector components.</p>
+<p><strong>Suggested contract, to refine with the existing code:</strong></p>
+<pre><code class="language-ts">type PersonalConnection = {
+  id: string;
+  targetId: string;
+  relation: &quot;relates_to&quot; | &quot;asks_about&quot; | &quot;questions&quot; | &quot;reminds_me_of&quot; | &quot;responds_to&quot;;
+  status: &quot;suggested&quot; | &quot;accepted&quot; | &quot;rejected&quot;;
+  origin: &quot;user&quot; | &quot;local_retrieval&quot; | &quot;ai&quot;;
+  explanation?: string;
+  sourceTextVersion?: number;
+  createdAt: number;
+};
+
+type ThoughtOrigin =
+  | { kind: &quot;free&quot; }
+  | { kind: &quot;verse&quot;; verseId: string }
+  | { kind: &quot;ask&quot;; question: string; citedNodeIds: string[] }
+  | { kind: &quot;thought&quot;; thoughtId: string };
+</code></pre>
+<p>This sketch is a direction, not a requirement to copy these exact identifiers. Choose relation types that map cleanly into the existing graph. Include a schema version, updatedAt, text version, and separate optional generated interpretation. Treat older machine-created edges as legacy suggestions unless the migration can prove explicit approval. Do not invent approval history.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>A thought can link to a verse, concept, or another personal thought.</li>
+<li>A connection can represent a question or disagreement.</li>
+<li>Original source context is distinguishable from a meaning the user endorses.</li>
+<li>Approved and suggested edges look and behave differently.</li>
+<li>Zero connections remains valid.</li>
+<li>Dangling references from deleted/imported thoughts are handled without crashing the graph.</li>
+<li>Export/import preserves provenance and status; older backups remain importable through validation/migration.</li>
+</ul>
+<h2 id="t04-p1-let-the-person-review-suggested-meaning">T04 · P1 · Let the person review suggested meaning</h2>
+<p><strong>Findings:</strong> F02, F14, F19, F28. <strong>Effort:</strong> M–L. <strong>Dependency:</strong> T02, T03.</p>
+<p><strong>Work:</strong> Separate intent detection from candidate retrieval. Default to explaining the writing's possible themes without asserting the writer's feelings. Show a few candidates with plain-language reasons. Add Keep connection, Doesn't fit, Choose another, and No connection yet. Do not present normalized relevance as psychological confidence.</p>
+<p><strong>Acceptance examples:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Required behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“Could a city be designed around cooperation rather than competition?”</td>
+<td>No assertion of crisis of faith or distress; a relevant optional connection or a no-clear-match state</td>
+</tr>
+<tr>
+<td>“Explain BG 2.47.”</td>
+<td>A teaching explanation, without telling the person they are anxious</td>
+</tr>
+<tr>
+<td>“I feel worried about tomorrow.”</td>
+<td>Tentative acknowledgment grounded in the expressed feeling; optional connection</td>
+</tr>
+<tr>
+<td>“I am not angry; I am curious about anger in the text.”</td>
+<td>No user anger label based only on keyword occurrence</td>
+</tr>
+<tr>
+<td>A joyful event or gratitude</td>
+<td>Welcome it without a distress score</td>
+</tr>
+<tr>
+<td>A quotation describing someone else's despair</td>
+<td>Distinguish subject/context rather than claiming the feeling belongs to the user</td>
+</tr>
+</tbody>
+</table></div>
+<p>Add a reviewed small evaluation set, including English/Hindi/Hinglish and unrelated intellectual writing. Define false-positive tolerances before changing thresholds. Human review of a sample matters more than an impressive numerical “match strength.”</p>
+<h2 id="t05-p1-build-thought-detail-editing-and-recovery">T05 · P1 · Build thought detail, editing, and recovery</h2>
+<p><strong>Findings:</strong> F07, F08, F16. <strong>Effort:</strong> M–L. <strong>Dependency:</strong> T01–T03.</p>
+<p><strong>Work:</strong> Make the history row open a personal thought detail. Display full text, dates, origin, approved/suggested connections, and separate AI material. Add edit, add later response, and recoverable deletion with Undo. Keep old writing when adding a dated revisit. Avoid showing aggregate charts before access to the entries themselves.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Long entries are fully readable directly from history.</li>
+<li>Editing an entry updates list, graph label, and local search.</li>
+<li>AI interpretation is identified and never overwrites the original text.</li>
+<li>A later response retains both dates and the earlier wording.</li>
+<li>Accidental delete can be reversed in the normal product flow.</li>
+<li>Deleting a connection does not delete the thought.</li>
+</ul>
+<h2 id="t06-p1-make-personal-writing-locally-searchable">T06 · P1 · Make personal writing locally searchable</h2>
+<p><strong>Findings:</strong> F07, F25. <strong>Effort:</strong> M. <strong>Dependency:</strong> T05.</p>
+<p><strong>Files:</strong> <code>CommandPalette.tsx</code>, <code>search.ts</code>, <code>useGitaStore.ts</code>, thought list/detail.</p>
+<p><strong>Work:</strong> Index personal text locally and update on create/edit/delete/import. Add an explicit My thoughts group and an in-Reflect search. Preserve the distinction between scripture, user writing, and generated interpretation. Start with simple text search and dates rather than a large taxonomy UI.</p>
+<p><strong>Acceptance:</strong> A distinctive phrase from the saved cooperation idea finds that exact thought. Edits and deletions update results. No private search terms or content are sent to external search/model services unless the person explicitly invokes an AI action.</p>
+<h2 id="t07-p1-build-a-small-understandable-personal-map">T07 · P1 · Build a small understandable personal map</h2>
+<p><strong>Findings:</strong> F17, F18, F30. <strong>Effort:</strong> L. <strong>Dependency:</strong> T03–T05.</p>
+<p><strong>Work:</strong> Begin on a selected thought, not the full 858-node network. Show 0–5 readable connections, clear edge meanings, provenance, and a source preview. Provide an equivalent accessible list. Allow expand to related neighborhood, chapter, and whole graph. Reuse the existing lineage/list implementation where practical.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>An unconnected thought is visible and complete.</li>
+<li>The current thought stays readable while inspecting an adjacent idea.</li>
+<li>The person can explain a link from the visible label/reason.</li>
+<li>Accepting/removing a suggestion updates the map immediately and persistently.</li>
+<li>A user can complete all personal map actions without WebGL or a pointer.</li>
+<li>The global 3D graph remains available and does not need to load before saving a thought.</li>
+</ul>
+<h2 id="t08-p1-add-a-beginner-learning-loop-and-verse-reflection">T08 · P1 · Add a beginner learning loop and verse reflection</h2>
+<p><strong>Findings:</strong> F09, F10, F11, F26. <strong>Effort:</strong> L. <strong>Dependency:</strong> T02, T03, T05.</p>
+<p><strong>Work:</strong> Prototype one complete short lesson before building a large curriculum. Include narrative context, attributed source, a labeled explanation, one example, a user response, and a continuation. Add Reflect on this verse to details and the reader. Add bookmark/resume behavior. Make mobile meaning easier to reach by simplifying the controls above it.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>A beginner can identify what to learn first.</li>
+<li>The first unit has a clear completion boundary.</li>
+<li>A saved verse note retains its source reference.</li>
+<li>The user can record uncertainty or disagreement without being corrected automatically.</li>
+<li>Return restores the reading location rather than the chapter's beginning.</li>
+<li>Original verse and translator attribution remain accessible alongside simple explanations.</li>
+</ul>
+<h2 id="t09-p1p2-improve-ask-context-formatting-and-takeaway-saving">T09 · P1/P2 · Improve Ask context, formatting, and takeaway saving</h2>
+<p><strong>Findings:</strong> F13–F16. <strong>Effort:</strong> M–L. <strong>Dependency:</strong> T03, T05 for personal handoff.</p>
+<p><strong>Work:</strong> Make answer intent explicit. Resolve conversational references for retrieval using active sources and bounded history. Define supported output formatting. Support mobile-friendly examples or safe responsive tables. Add Save my takeaway and a reliable Back to answer route. Preserve local answer fallback without pretending it is the same capability as a generative model.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Re-run the audited beginner question and follow-up: readable examples, no raw table delimiters, no assigned anxiety.</li>
+<li>“Why?” after a verse explanation retains relevant sources.</li>
+<li>Opening and closing a citation restores answer position and input draft.</li>
+<li>Save my takeaway creates editable user writing with source references and separate optional quoted AI material.</li>
+<li>Cancel, provider failure, and a long answer leave the composer usable.</li>
+<li>Do not auto-scroll a person away from material they are actively reading; offer a new-content affordance when appropriate.</li>
+</ul>
+<h2 id="t10-p1-fix-mobile-reflow-and-control-hierarchy">T10 · P1 · Fix mobile reflow and control hierarchy</h2>
+<p><strong>Findings:</strong> F11, F12, F23, F32. <strong>Effort:</strong> M. <strong>Dependency:</strong> start immediately; retest after all surface changes.</p>
+<p><strong>Work:</strong> Correct long-script wrapping, inner scroll widths, narrow verse gutters, and unsupported output. Give phone controls comfortable hit areas. Reduce the mobile detail's initial control stack. Add an expanded player with replay/previous/next and a useful seek target.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>At actual CSS widths 320, 355, 390, and 430px, reader and Ask do not require horizontal content scrolling.</li>
+<li>Source text remains complete, including diacritics and script marks.</li>
+<li>Body text enlargement does not obscure Save or block navigation.</li>
+<li>Primary phone controls use a 44–48px design target unless a documented contextual exception is intentional.</li>
+<li>Opening a verse exposes meaningful content immediately.</li>
+<li>Reader with audio plus Ask/Details remains operable on a short screen.</li>
+</ul>
+<p><strong>Test distinction:</strong> A canvas may support spatial panning; that does not justify horizontal overflow in reading text or forms.</p>
+<h2 id="t11-p1-fix-modal-and-keyboard-accessibility">T11 · P1 · Fix modal and keyboard accessibility</h2>
+<p><strong>Findings:</strong> F22, F23, F30. <strong>Effort:</strong> M. <strong>Dependency:</strong> none; reuse improvements across new screens.</p>
+<p><strong>Work:</strong> Establish a shared modal primitive with focus entry, focus containment, inert background, Escape and focus restoration. Audit tabs/radios, search labeling, icons, screen-reader announcements, and list equivalents to graph actions. Add a skip-to-main path where appropriate. Treat desktop nonmodal docks differently from blocking dialogs.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Open guide from the brand button and press Tab: focus stays in the guide.</li>
+<li>Close it: focus returns to the brand button.</li>
+<li>Repeat for settings and search, with proper dialog names and visible focus.</li>
+<li>Radio/tab keyboard behavior matches the chosen accessible pattern.</li>
+<li>Streaming content does not overwhelm screen-reader announcements.</li>
+<li>Reduced motion and graph alternatives preserve the task's meaning.</li>
+<li>A real screen-reader pass supplements DOM inspection.</li>
+</ul>
+<h2 id="t12-p2-define-navigation-language-and-daily-settings">T12 · P2 · Define navigation, language, and daily settings</h2>
+<p><strong>Findings:</strong> F01, F24, F26, F31. <strong>Effort:</strong> L. <strong>Dependency:</strong> prototype the target journey before broad nav migration.</p>
+<p><strong>Work:</strong> Test Today / Learn / Reflect / My map / Ask as a proposed five-destination hierarchy. Nest lineage under relationships. Add meaningful history, Back to origin, restored scroll position, persistent reading/language preferences, and everyday settings. Keep API/provider/database configuration under Advanced.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Browser/system Back retraces meaningful destinations or closes the correct layer.</li>
+<li>Existing verse deep links still resolve.</li>
+<li>Script choice, meaning language, and interface language are distinct concepts.</li>
+<li>Hindi meanings are consistent through supported reader/detail flows.</li>
+<li>A person can use the core product without opening advanced integrations.</li>
+</ul>
+<h2 id="t13-p1p2-align-privacy-language-and-backup-custody">T13 · P1/P2 · Align privacy language and backup custody</h2>
+<p><strong>Findings:</strong> F20, F21. <strong>Effort:</strong> M–L. <strong>Dependency:</strong> T01; coordinate with AI handoffs and model schema.</p>
+<p><strong>Work:</strong> Replace inconsistent absolute privacy claims. Explain local saved scope, optional model transmission, content included, provider destination, and unencrypted exports. Add clear first-use AI disclosure, backup status, validated restore/merge, and user-oriented storage errors. Define sync as a separate privacy/product decision.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>First-time mobile users can describe what Deepen/AI sends before invoking it.</li>
+<li>Local save remains available without accepting AI transfer.</li>
+<li>“Saved” is not presented as automatic cross-device synchronization.</li>
+<li>Restore a backup in an empty browser and verify text, dates, provenance, accepted links, and standalone nodes.</li>
+<li>Invalid/partially incompatible backups receive understandable validation without erasing existing writing.</li>
+<li>Load failure cannot masquerade as an empty history.</li>
+</ul>
+<h2 id="t14-p2-verify-production-offline-audio-and-device-behavior">T14 · P2 · Verify production offline, audio, and device behavior</h2>
+<p><strong>Findings:</strong> F29, F30, F32. <strong>Effort:</strong> M–L. <strong>Dependency:</strong> reliable core loop.</p>
+<p><strong>Work:</strong> Test a production build on actual phones. Separate offline shell/data, cached commentary, optional AI, remote recordings, and synthesized voice. Add WebGL/fetch/storage recovery. Measure responsiveness and memory on a realistic low-end Android device before selecting performance changes.</p>
+<p><strong>Acceptance:</strong></p>
+<ul>
+<li>Restart disconnected and access previously saved thoughts.</li>
+<li>Open cached and uncached content: each has truthful availability and a recovery action.</li>
+<li>Provider failure returns a clearly described local fallback or retry.</li>
+<li>Audio interruptions, backgrounding, replay, follow-along opt-out, and source changes are understandable.</li>
+<li>Keyboard appearance does not hide the composer or Save/Send.</li>
+<li>The app survives a background/foreground interruption without losing a thought.</li>
+<li>Record actual production results and limitations; do not substitute development build timing.</li>
+</ul>
+<h2 id="t15-p2-review-content-and-validate-with-people">T15 · P2 · Review content and validate with people</h2>
+<p><strong>Findings:</strong> F19, F27, F28 and adoption section of the main report. <strong>Effort:</strong> ongoing, bounded first round. <strong>Dependency:</strong> usable prototype from T01–T09.</p>
+<p><strong>Work:</strong> Review provenance, commentary punctuation, simple explanations, metaphors, personal-advice framing, generated regional meanings, and crisis handling with appropriate expertise. Run the eight usability tasks in the report with 6–8 initial participants. Include real assistive-technology and language validation separately.</p>
+<p><strong>Acceptance:</strong> Report actual task completion and misunderstandings. Most importantly, users can keep an ordinary idea, reject a bad connection, understand one teaching, return to the original thought, and explain the privacy boundary. Revise based on observed failure rather than adding features to improve a dashboard metric.</p>
+<h2 id="t16-p3-prepare-a-demonstrable-product-story">T16 · P3 · Prepare a demonstrable product story</h2>
+<p><strong>Findings:</strong> storytelling section. <strong>Effort:</strong> S–M. <strong>Dependency:</strong> the features shown in the story must work.</p>
+<p><strong>Work:</strong> Storyboard the 75–90 second thought → optional teaching → personal interpretation → small map → later revisit sequence. Include an ordinary intellectual thought. Use the full graph as a short contextual reveal after the personal meaning is clear. Capture screens from the actual verified build.</p>
+<p><strong>Acceptance:</strong> Every claimed behavior has a working UI demonstration. Proposed screens are labeled as prototypes. There is no unsupported health-outcome claim, universal “everything offline” claim, or suggestion that the model decides what a person's thought truly means.</p>
+<h2 id="minimum-regression-and-evaluation-set">Minimum regression and evaluation set</h2>
+<h3 id="protect-writing">Protect writing</h3>
+<ul>
+<li>New entry; long entry; blank/whitespace; edit existing; repeated Save; save failure; load failure.</li>
+<li>Draft across views, source inspection, reload, backgrounding, and interrupted process.</li>
+<li>Analyze then edit; stale async response after edit; save while suggestion generation is in progress.</li>
+<li>Existing database migration; old backup import; duplicate IDs; malformed backups; missing relationship targets.</li>
+<li>Undo deletion; restore; exported backup round trip.</li>
+</ul>
+<h3 id="respect-meaning">Respect meaning</h3>
+<ul>
+<li>Intellectual cooperation idea; neutral observation; joyful memory; gratitude; explicit emotion; negation; quotation; ambiguous topic; verse disagreement; no plausible match.</li>
+<li>English, Hindi, and representative Hinglish inputs, including language-specific spelling variants.</li>
+<li>AI unavailable and local-only path.</li>
+<li>Candidate rejected, accepted, edited, removed, and replaced; rejected candidates do not quietly reappear as accepted edges or aggregate patterns.</li>
+</ul>
+<h3 id="learn-and-navigate">Learn and navigate</h3>
+<ul>
+<li>First visit to a short learning unit; full reader; bookmark; resume; verse note; Ask takeaway; thought detail → verse → Back.</li>
+<li>Ask explanation → ambiguous follow-up → citation → return; switching subject changes retrieval context.</li>
+<li>Mobile 320/355/390/430 widths, tablet 768/1024, desktop around 1440; short viewport; large text; real keyboard and safe-area behavior.</li>
+<li>Long Sanskrit, IAST, Hindi, and selected regional scripts, long AI prose, comparison formatting, and error text.</li>
+<li>Keyboard/modal focus; screen reader; reduced motion; graph list equivalence; both themes.</li>
+</ul>
+<h2 id="definition-of-the-next-credible-milestone">Definition of the next credible milestone</h2>
+<p>The milestone is complete when a person can:</p>
+<ol>
+<li>Arrive and understand what the product offers.</li>
+<li>Save a thought safely without a match, score, or model.</li>
+<li>Choose a useful connection or decline it.</li>
+<li>Open a source and understand a small teaching.</li>
+<li>Keep their own interpretation and return to the original thought.</li>
+<li>See a readable personal map and find the entry later.</li>
+<li>Understand local custody, backup, and optional AI transfer.</li>
+</ol>
+<p>Document the checks actually run and the known limitations. Do not close the milestone merely because the screens look finished.</p><footer>Prepared from live UI inspection and source review. Findings distinguish observed behavior, code-confirmed risks, and proposed product changes. No application source was changed.</footer></main></div></body></html>
