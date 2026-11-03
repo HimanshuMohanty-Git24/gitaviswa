@@ -11,7 +11,7 @@ const nodeTitle = (n: GraphNode) => (n.type === "Verse" ? `BG ${n.ref}` : n.type
 const nodeSub = (n: GraphNode) => (n.type === "Verse" ? n.snippet : "en" in n ? n.en : n.type === "Character" ? n.role : n.type === "LifeDilemma" ? n.desc : "");
 
 /** Accessible combobox over every node (verse references, labels, IAST, English names). */
-export function NodePicker({ value, onChange, placeholder, label }: { value: string | null; onChange: (id: string | null) => void; placeholder: string; label: string }) {
+export function NodePicker({ value, onChange, placeholder, label, exclude }: { value: string | null; onChange: (id: string | null) => void; placeholder: string; label: string; exclude?: (n: GraphNode) => boolean }) {
   const graphs = useGita((s) => s.graphs);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -21,7 +21,8 @@ export function NodePicker({ value, onChange, placeholder, label }: { value: str
 
   const index = useMemo(() => {
     if (!graphs) return [];
-    return [...graphs.nodeById.values()].map((n) => ({ n, key: fold(`${nodeTitle(n)} ${"iast" in n ? n.iast : ""} ${"en" in n ? n.en : ""} ${n.type === "Verse" ? n.ref : ""}`) }));
+    // A saved thought is findable by any phrase in it, not only its short label.
+    return [...graphs.nodeById.values()].map((n) => ({ n, key: fold(`${nodeTitle(n)} ${"iast" in n ? n.iast : ""} ${"en" in n ? n.en : ""} ${n.type === "Verse" ? n.ref : ""} ${n.type === "PersonalThought" ? n.text : ""}`) }));
   }, [graphs]);
 
   const results = useMemo(() => {
@@ -30,14 +31,14 @@ export function NodePicker({ value, onChange, placeholder, label }: { value: str
     const ref = t.match(/^(?:bg\s*)?(\d{1,2})[.:\s](\d{1,2})$/);
     if (ref) {
       const hit = graphs?.nodeById.get(`BG_${Number(ref[1])}.${Number(ref[2])}`);
-      if (hit) return [hit];
+      if (hit && !exclude?.(hit)) return [hit];
     }
     return index
-      .filter((x) => x.key.includes(t))
+      .filter((x) => x.key.includes(t) && !exclude?.(x.n))
       .sort((a, b) => (a.n.type === "Verse" ? 1 : 0) - (b.n.type === "Verse" ? 1 : 0) || a.key.indexOf(t) - b.key.indexOf(t))
       .slice(0, 8)
       .map((x) => x.n);
-  }, [q, index, graphs]);
+  }, [q, index, graphs, exclude]);
 
   const choose = (id: string) => {
     onChange(id);

@@ -1,13 +1,15 @@
 "use client";
 import { create } from "zustand";
-import type { GraphData, NodeLabel, PersonalThought, Verse, VersesDoc, ViewMode } from "@/lib/types";
+import type { DeletedThought, GraphData, NodeLabel, PersonalThought, Verse, VersesDoc, ViewMode } from "@/lib/types";
 import { decodeEmbeddings, loadEmbeddings, loadGraph, loadVerses } from "@/lib/data/loader";
 import { buildGraphs, type GitaGraphs } from "@/lib/graph/graphStore";
 import { detectCommunities, type Communities } from "@/lib/graph/communities";
 import type { RelationGroup } from "@/lib/graph/relations";
 import { buildSearchIndex, type SearchIndex } from "@/lib/graphrag/search";
 import type { RagContext } from "@/lib/graphrag/engine";
-import { loadThoughts } from "./personalStore";
+import { loadThoughts, type ThoughtLoad } from "./personalStore";
+import { describeStorageError } from "./thoughtModel";
+import { useDraft } from "./draftStore";
 
 export type HighlightSource = "path" | "chat" | "stem" | "thread" | "chain" | "manas" | "search" | "audio";
 export interface Highlight {
@@ -36,6 +38,13 @@ interface GitaState {
   indexStatus: "idle" | "building" | "ready" | "error";
   communities: Communities | null;
   thoughts: PersonalThought[];
+  /** "error" means saved thoughts could not be read — distinct from having none. */
+  thoughtsStatus: "loading" | "ready" | "error";
+  thoughtsError?: string;
+  /** Stored records this version could not read (kept untouched). */
+  thoughtsUnreadable: number;
+  /** "Recently deleted", newest first. */
+  trash: DeletedThought[];
   graphVersion: number;
 
   view: ViewMode;
@@ -65,7 +74,8 @@ interface GitaState {
 
   init: () => Promise<void>;
   ragContext: () => RagContext | null;
-  setThoughts: (t: PersonalThought[]) => void;
+  setThoughts: (t: PersonalThought[] | ThoughtLoad) => void;
+  reloadThoughts: () => Promise<void>;
   setView: (v: ViewMode) => void;
   setThemePref: (t: ThemePref) => void;
   setTheme: (t: "dark" | "light") => void;
@@ -101,6 +111,9 @@ export const useGita = create<GitaState>((set, get) => ({
   indexStatus: "idle",
   communities: null,
   thoughts: [],
+  thoughtsStatus: "loading",
+  thoughtsUnreadable: 0,
+  trash: [],
   graphVersion: 0,
 
   view: "cosmos",
@@ -131,13 +144,18 @@ export const useGita = create<GitaState>((set, get) => ({
     if (get().status === "loading" || get().status === "ready") return;
     set({ status: "loading" });
     try {
-      const [versesDoc, graphData, thoughts] = await Promise.all([loadVerses(), loadGraph(), loadThoughts()]);
-      const graphs = buildGraphs(graphData, thoughts);
+      // Personal storage failing must not stop the Gita from loading, and must not look like an empty history.
+      const personal = loadThoughts().then(
+        (l) => ({ thoughts: l.thoughts, thoughtsUnreadable: l.unreadable, trash: l.trash ?? [], thoughtsStatus: "ready" as const, thoughtsError: undefined }),
+        (e) => ({ thoughts: [] as PersonalThought[], thoughtsUnreadable: 0, trash: [] as DeletedThought[], thoughtsStatus: "error" as const, thoughtsError: describeStorageError(e) }),
+      );
+      const [versesDoc, graphData, mine] = await Promise.all([loadVerses(), loadGraph(), personal, useDraft.getState().hydrate()]);
+      const graphs = buildGraphs(graphData, mine.thoughts);
       set({
         versesDoc,
         graphData,
         graphs,
-        thoughts,
+        ...mine,
         versesById: new Map(versesDoc.verses.map((v) => [v.id, v])),
         enAuthor: versesDoc.meta.defaults.en,
         hiAuthor: versesDoc.meta.defaults.hi,
@@ -169,10 +187,20 @@ export const useGita = create<GitaState>((set, get) => ({
     return { graphs: s.graphs, versesById: s.versesById, versesDoc: s.versesDoc, data: s.graphData, index: s.index };
   },
 
-  setThoughts: (thoughts) => {
+  setThoughts: (next) => {
+    const { thoughts, unreadable, trash } = Array.isArray(next) ? { thoughts: next, unreadable: get().thoughtsUnreadable, trash: undefined } : next;
+    const ok = { thoughts, thoughtsUnreadable: unreadable, thoughtsStatus: "ready" as const, thoughtsError: undefined, ...(trash ? { trash } : {}) };
     const { graphData } = get();
-    if (!graphData) return set({ thoughts });
-    set({ thoughts, graphs: buildGraphs(graphData, thoughts), graphVersion: get().graphVersion + 1 });
+    if (!graphData) return set(ok);
+    set({ ...ok, graphs: buildGraphs(graphData, thoughts), graphVersion: get().graphVersion + 1 });
+  },
+  reloadThoughts: async () => {
+    set({ thoughtsStatus: "loading" });
+    try {
+      get().setThoughts(await loadThoughts());
+    } catch (e) {
+      set({ thoughtsStatus: "error", thoughtsError: describeStorageError(e) });
+    }
   },
 
   setView: (view) => set({ view }),

@@ -5,7 +5,7 @@ import "@xyflow/react/dist/style.css";
 import { ArrowLeft, ArrowRight, BookOpen, Orbit, PanelRight, Play, Workflow, X } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { audio } from "@/lib/store/audioStore";
-import { neighbors, type GitaGraphs, type Neighbor } from "@/lib/graph/graphStore";
+import { isSuggestedEdge, neighbors, type GitaGraphs, type Neighbor } from "@/lib/graph/graphStore";
 import { RELATIONS } from "@/lib/graph/relations";
 import { typeName } from "@/lib/graph/palette";
 import { useIsMobile } from "@/lib/hooks/useMedia";
@@ -103,9 +103,14 @@ function buildLineage(g: GitaGraphs, focus: string, versesById: Map<string, Vers
       case "Chapter":
         out.push(...pick(["NEXT_CHAPTER"], false, 1, "up"), ...pick(["EXPOUNDS"], true, 5, "down"), ...pick(["NEXT_CHAPTER"], true, 1, "down"));
         break;
-      case "PersonalThought":
-        out.push(...pick(["FEELS", "FACES"], true, 5, "up"), ...pick(["RESONATES_WITH"], true, 5, "down"));
+      case "PersonalThought": {
+        // The person's own connections first; unconfirmed suggestions grouped apart so they never read as endorsed.
+        const mine = all.filter((x) => RELATIONS[x.type].group === "personal");
+        out.push(...mine.filter((x) => !x.outgoing).slice(0, 4).map((x) => itemFor(x, "up", RELATIONS[x.type].inverse, versesById)));
+        out.push(...mine.filter((x) => x.outgoing && !isSuggestedEdge(x.props)).slice(0, 6).map((x) => itemFor(x, "down", RELATIONS[x.type].verb, versesById)));
+        out.push(...mine.filter((x) => x.outgoing && isSuggestedEdge(x.props)).slice(0, 4).map((x) => itemFor(x, "down", "suggested, not confirmed", versesById)));
         break;
+      }
     }
   }
   const seen = new Set<string>();

@@ -109,10 +109,15 @@ export async function retrieve(
     scores.set(id, r);
   };
 
+  // Personal thoughts are walls: they never shape public retrieval, and their text (via a reason such as
+  // "connects to <thought>") can never end up in a context that is sent to a language model.
+  const personal = (id: string) => g.nodeById.get(id)?.type === "PersonalThought";
   for (const seed of seeds.values()) {
+    if (personal(seed.id)) continue;
     credit(seed.id, seed.score, seed.via);
     const depthOf = new Map<string, number>();
     bfsFromNode(g.path, seed.id, (node, _attr, depth) => {
+      if (depth > 0 && personal(node)) return true;
       depthOf.set(node, depth);
       if (depth >= 2) return true;
       if (depth >= 1 && g.path.degree(node) > HUB_DEGREE) return true;

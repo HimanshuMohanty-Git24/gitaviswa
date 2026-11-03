@@ -6,7 +6,9 @@ export type RelationType =
   | "BELONGS_TO" | "NEXT_VERSE" | "NEXT_CHAPTER" | "SPOKE" | "NARRATED" | "ADDRESSES" | "MENTIONS_CHARACTER"
   | "MENTIONS_CONCEPT" | "DEFINES_CONCEPT" | "EXPOUNDS" | "MENTIONS_STATE" | "DEPICTS_STATE" | "HEALS" | "CULTIVATES"
   | "CAUSES_STATE" | "ANTIDOTE_TO" | "ADDRESSES_DILEMMA" | "EVOKES_STATE" | "RESOLVED_THROUGH" | "ANSWERS_QUESTION_IN"
-  | "ECHOES_VERSE" | "CULMINATES_IN" | "FEELS" | "FACES" | "RESONATES_WITH";
+  | "ECHOES_VERSE" | "CULMINATES_IN" | "FEELS" | "FACES" | "RESONATES_WITH"
+  // personal connections (schema 3); FEELS / FACES / RESONATES_WITH are the retired schema ≤2 personal relations
+  | "CONNECTS_TO" | "ASKS_ABOUT" | "QUESTIONS" | "REMINDS_OF" | "RESPONDS_TO";
 
 export interface GraphNodeBase {
   id: string;
@@ -96,16 +98,107 @@ export interface CommentaryDoc {
   commentaries: { authorId: number; author: string; school?: string; lang: "en" | "hi" | "sa"; text: string }[];
 }
 
+/** How a thought relates to something. Chosen by the person; suggestions default to "relates_to". */
+export type ConnectionRelation = "relates_to" | "asks_about" | "questions" | "reminds_me_of" | "responds_to";
+export type ConnectionStatus = "suggested" | "accepted" | "rejected";
+/** user: chosen by the person · local: suggested offline from the graph · ai: suggested by a language model ·
+ *  legacy: made automatically by schema ≤2 Reflect and never explicitly reviewed. */
+export type ConnectionOrigin = "user" | "local" | "ai" | "legacy";
+
+export interface PersonalConnection {
+  id: string;
+  /** Graph node id: a verse (BG_2.47), concept, state, situation, or another thought (thought:<id>). */
+  targetId: string;
+  relation: ConnectionRelation;
+  status: ConnectionStatus;
+  origin: ConnectionOrigin;
+  /** Plain-language reason it was suggested. */
+  why?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+/** Where the writing began. Context, not an endorsement of any meaning. */
+export type ThoughtOrigin = { kind: "free" } | { kind: "verse"; verseId: string } | { kind: "ask"; question: string; citedNodeIds: string[] } | { kind: "thought"; thoughtId: string };
+
+type LegacyLink = { id: string; score: number; why?: string };
+
 export interface PersonalThought {
+  id: string;
+  /** Record schema version. Absent on entries saved before versioning (schema 1). */
+  v?: number;
+  /** The person's own words as saved — always the source of truth; suggestions never rewrite it. */
+  text: string;
+  createdAt: number;
+  updatedAt?: number;
+  /** Optional self-reported heaviness, 1–5. Present only when the person chose one. */
+  checkIn?: number;
+  /** Heaviness recorded by schema-1 Reflect, which preselected 3 ("Heavy"). Kept as history, never read as a choice. */
+  intensity?: number;
+  /** Connections with status and provenance (schema 3). Zero is a complete, valid thought. */
+  connections: PersonalConnection[];
+  origin?: ThoughtOrigin;
+  /** Schema ≤2 automatic mapping, kept unchanged as history; migrated into `connections` as unreviewed suggestions. */
+  emotions?: { id: string; score: number }[];
+  dilemmas?: { id: string; score: number }[];
+  verses?: LegacyLink[];
+  /** Generated interpretation (offline or AI), separate from the person's words. */
+  reflection?: string;
+  enrichedBy?: string;
+  /** Earlier wordings, oldest first, each with the time it was replaced. Editing never discards writing. */
+  revisions?: { text: string; until: number }[];
+}
+
+/** A thought in "Recently deleted": restorable until the person empties it. */
+export interface DeletedThought {
+  thought: PersonalThought;
+  deletedAt: number;
+}
+
+/** What made a candidate plausible: the person named or expressed it, the graph relates it, an AI proposed it, or only shared wording. */
+export type CandidateBasis = "expressed" | "named" | "related" | "ai" | "words";
+
+export interface ConnectionCandidate {
+  targetId: string;
+  basis: CandidateBasis;
+  /** Plain-language reason, shown to the person. */
+  why: string;
+  /** The person's own word that matched, when there was one. */
+  cue?: string;
+  score: number;
+  origin: "local" | "ai";
+}
+
+/** Suggested connections, bound to the exact text they were computed from. */
+export interface ThoughtSuggestions {
+  /** The trimmed text that was analysed. Once the writing differs, these are stale. */
+  forText: string;
+  createdAt: number;
+  candidates: ConnectionCandidate[];
+  reflection?: string;
+  enrichedBy?: string;
+}
+
+/** A decision the person made in the composer. Kept connections survive later edits to the wording. */
+export interface DraftLink {
+  targetId: string;
+  status: "accepted" | "rejected";
+  relation: ConnectionRelation;
+  origin: ConnectionOrigin;
+  why?: string;
+  at: number;
+}
+
+/** Unsaved writing, kept on this device while the person composes. Its id becomes the saved entry's id. */
+export interface ThoughtDraft {
   id: string;
   text: string;
   createdAt: number;
-  intensity: number;
-  emotions: { id: string; score: number }[];
-  dilemmas: { id: string; score: number }[];
-  verses: { id: string; score: number; why?: string }[];
-  reflection?: string;
-  enrichedBy?: string;
+  updatedAt: number;
+  checkIn?: number;
+  origin?: ThoughtOrigin;
+  suggestions?: ThoughtSuggestions;
+  links?: DraftLink[];
 }
 
 export type ViewMode = "cosmos" | "darshana" | "adhyayana" | "manas";

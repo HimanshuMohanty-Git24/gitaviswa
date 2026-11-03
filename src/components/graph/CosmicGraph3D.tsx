@@ -6,13 +6,14 @@ import SpriteText from "three-spritetext";
 import { useGita } from "@/lib/store/useGitaStore";
 import { useAudio } from "@/lib/store/audioStore";
 import { RELATIONS, type RelationGroup } from "@/lib/graph/relations";
+import { isSuggestedEdge } from "@/lib/graph/graphStore";
 import { communityColor } from "@/lib/graph/communities";
 import { KIND_META, NODE_HEX, nodeKind, typeName, type NodeKind } from "@/lib/graph/palette";
 import { useCoarsePointer, useIsDesktop, useIsMobile, useReducedMotion } from "@/lib/hooks/useMedia";
 import type { GraphNode, NodeLabel, RelationType } from "@/lib/types";
 
 type NodeT = { id: string; type: NodeLabel; label: string; data: GraphNode };
-type LinkT = { key: string; type: RelationType; group: RelationGroup };
+type LinkT = { key: string; type: RelationType; group: RelationGroup; suggested?: boolean };
 type GNode = NodeObject<NodeT>;
 type GLink = LinkObject<NodeT, LinkT>;
 
@@ -215,7 +216,7 @@ export default function CosmicGraph3D() {
     graphs.graph.forEachEdge((key, attr, s, t) => {
       const group = RELATIONS[attr.type].group;
       if (!edgeGroups[group] || !visible.has(s) || !visible.has(t)) return;
-      links.push({ key, source: s, target: t, type: attr.type, group });
+      links.push({ key, source: s, target: t, type: attr.type, group, ...(group === "personal" && isSuggestedEdge(attr.props) ? { suggested: true } : {}) });
     });
     return { nodes, links };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -500,7 +501,8 @@ export default function CosmicGraph3D() {
         case "lexical":
           return `rgba(${ink},${dark ? 0.032 : 0.034})`;
         case "personal":
-          return `rgba(${ink},0.55)`;
+          // Faint until the person keeps the connection.
+          return `rgba(${ink},${l.suggested ? 0.14 : 0.55})`;
         default:
           return `rgba(${ink},${dark ? 0.085 : 0.085})`;
       }

@@ -38,13 +38,20 @@ export const RELATIONS: Record<RelationType, RelationMeta> = {
   FEELS: { verb: "feels", inverse: "is felt in", group: "personal", pathCost: 1, rag: 1 },
   FACES: { verb: "faces", inverse: "is faced in", group: "personal", pathCost: 1, rag: 1 },
   RESONATES_WITH: { verb: "resonates with", inverse: "resonates with", group: "personal", pathCost: 1, rag: 1 },
+  // Personal connections are the person's own: costly as bridges between public ideas, and never used to rank
+  // public retrieval (retrieve() also stops at personal nodes so their text can't reach a model's context).
+  CONNECTS_TO: { verb: "connects to", inverse: "is connected in", group: "personal", pathCost: 4, rag: 0 },
+  ASKS_ABOUT: { verb: "asks about", inverse: "is asked about in", group: "personal", pathCost: 4, rag: 0 },
+  QUESTIONS: { verb: "questions", inverse: "is questioned in", group: "personal", pathCost: 4, rag: 0 },
+  REMINDS_OF: { verb: "is reminded of", inverse: "comes to mind in", group: "personal", pathCost: 4, rag: 0 },
+  RESPONDS_TO: { verb: "responds to", inverse: "has a later response in", group: "personal", pathCost: 4, rag: 0 },
 };
 
 export const RELATION_GROUPS: Record<RelationGroup, { label: string; sa: string; hint: string }> = {
   structure: { label: "Structure", sa: "संरचना", hint: "Chapters, reading order and who speaks each verse" },
   lexical: { label: "Word matches", sa: "शब्द", hint: "A Sanskrit term for the idea appears in the verse" },
   curated: { label: "Curated links", sa: "सूत्र", hint: "Dialogues, thematic threads, causal chains and healing relations" },
-  personal: { label: "My reflections", sa: "मनस्", hint: "Links from your journal entries (stored locally)" },
+  personal: { label: "My reflections", sa: "मनस्", hint: "Connections from your saved thoughts (stored locally). Faint lines are suggestions you haven't confirmed." },
 };
 
 export interface LabelMeta {

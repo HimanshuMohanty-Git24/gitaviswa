@@ -3,11 +3,13 @@ import { useMemo, useState } from "react";
 import { BookOpen, ChevronDown, MessagesSquare, Orbit, Play, Spline, Waypoints, X } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { audio } from "@/lib/store/audioStore";
-import { neighbors, type Neighbor } from "@/lib/graph/graphStore";
+import { isSuggestedEdge, neighbors, type Neighbor } from "@/lib/graph/graphStore";
+import { RELATIONS } from "@/lib/graph/relations";
 import { typeName } from "@/lib/graph/palette";
 import type { RelationType } from "@/lib/types";
 import { askPartha } from "@/components/chat/GraphRagChatbot";
 import { NodeGlyph, SectionLabel } from "@/components/ui/primitives";
+import { ThoughtDetail } from "@/components/manas/ThoughtDetail";
 
 const PREVIEW = 6;
 
@@ -70,7 +72,7 @@ export function NodeInspector({ nodeId, onClose }: { nodeId: string; onClose: ()
       sections.push(["Defined in", of(["DEFINES_CONCEPT"], false)], ["Antidote to", of(["ANTIDOTE_TO"], true)], ["Causal links", of(["CAUSES_STATE"])], ["Resolves", of(["RESOLVED_THROUGH"], false)], ["A theme of", of(["EXPOUNDS"], false)], ["Mentioned in", of(["MENTIONS_CONCEPT"], false)]);
       break;
     case "LifeDilemma":
-      sections.push(["Verses that speak to it", of(["ADDRESSES_DILEMMA"], false)], ["States of mind it evokes", of(["EVOKES_STATE"], true)], ["Resolved through", of(["RESOLVED_THROUGH"], true)], ["In my reflections", of(["FACES"], false)]);
+      sections.push(["Verses that speak to it", of(["ADDRESSES_DILEMMA"], false)], ["States of mind it evokes", of(["EVOKES_STATE"], true)], ["Resolved through", of(["RESOLVED_THROUGH"], true)]);
       break;
     case "Character":
       sections.push(["In conversation with", of(["ADDRESSES"])], ["Named in", of(["MENTIONS_CHARACTER"], false)]);
@@ -79,9 +81,11 @@ export function NodeInspector({ nodeId, onClose }: { nodeId: string; onClose: ()
       sections.push(["Main themes", of(["EXPOUNDS"], true)], ["Neighbouring chapters", of(["NEXT_CHAPTER"])]);
       break;
     case "PersonalThought":
-      sections.push(["Feels", of(["FEELS"], true)], ["Faces", of(["FACES"], true)], ["Resonates with", of(["RESONATES_WITH"], true)]);
+      // Shown by <ThoughtDetail />: the text (editable), its history, and kept / suggested / declined connections kept apart.
       break;
   }
+  // Only connections the person kept; unconfirmed suggestions are not presented as their view.
+  if (n.type !== "PersonalThought") sections.push(["In my thoughts", nb.filter((x) => !x.outgoing && RELATIONS[x.type].group === "personal" && !isSuggestedEdge(x.props))]);
   const chapter = n.type === "Chapter" ? versesDoc?.chapters.find((c) => c.number === n.number) : null;
   const spokenByChapter = n.type === "Character" ? Array.from({ length: 18 }, (_, i) => of(["SPOKE"], true).filter((x) => x.node.type === "Verse" && x.node.chapter === i + 1).length) : null;
   const maxSpoken = spokenByChapter ? Math.max(1, ...spokenByChapter) : 1;
@@ -151,7 +155,8 @@ export function NodeInspector({ nodeId, onClose }: { nodeId: string; onClose: ()
           )}
         </div>
 
-        {desc && <p className={`mt-5 ${n.type === "PersonalThought" ? "reading !text-text" : "reading"}`}>{desc}</p>}
+        {desc && n.type !== "PersonalThought" && <p className="reading mt-5">{desc}</p>}
+        {n.type === "PersonalThought" && <ThoughtDetail nodeId={n.id} />}
         {n.type === "Emotion" && n.modern && (
           <p className="mt-3 text-[13px] leading-5 text-text-3">
             <span className="font-medium text-text-2">In modern terms: </span>

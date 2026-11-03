@@ -1,5 +1,5 @@
 import { MultiDirectedGraph, UndirectedGraph } from "graphology";
-import type { GraphData, GraphEdge, GraphNode, PersonalThought, RelationType } from "@/lib/types";
+import type { ConnectionRelation, GraphData, GraphEdge, GraphNode, PersonalThought, RelationType } from "@/lib/types";
 import { RELATIONS, edgeKey } from "./relations";
 
 export interface EdgeAttrs {
@@ -23,14 +23,23 @@ export interface GitaGraphs {
 
 export const thoughtNodeId = (id: string) => `thought:${id}`;
 
+export const PERSONAL_RELATION: Record<ConnectionRelation, RelationType> = {
+  relates_to: "CONNECTS_TO",
+  asks_about: "ASKS_ABOUT",
+  questions: "QUESTIONS",
+  reminds_me_of: "REMINDS_OF",
+  responds_to: "RESPONDS_TO",
+};
+
+/** A thought's accepted and suggested connections as graph edges (rejected ones are not drawn). Edges to deleted targets are skipped by buildGraphs. */
 export function personalEdges(t: PersonalThought): GraphEdge[] {
   const id = thoughtNodeId(t.id);
-  return [
-    ...t.emotions.map((e) => ({ source: id, target: e.id, type: "FEELS" as const, weight: e.score })),
-    ...t.dilemmas.map((d) => ({ source: id, target: d.id, type: "FACES" as const, weight: d.score })),
-    ...t.verses.map((v) => ({ source: id, target: v.id, type: "RESONATES_WITH" as const, weight: v.score, props: v.why ? { why: v.why } : undefined })),
-  ];
+  return t.connections
+    .filter((c) => c.status !== "rejected")
+    .map((c) => ({ source: id, target: c.targetId, type: PERSONAL_RELATION[c.relation], weight: c.status === "accepted" ? 1 : 0.3, props: { status: c.status, origin: c.origin, ...(c.why ? { why: c.why } : {}) } }));
 }
+
+export const isSuggestedEdge = (props: GraphEdge["props"]) => props?.status === "suggested";
 
 export function personalNode(t: PersonalThought): GraphNode {
   const label = t.text.length > 42 ? t.text.slice(0, 40).trimEnd() + "…" : t.text;
