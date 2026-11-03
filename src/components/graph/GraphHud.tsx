@@ -107,6 +107,61 @@ function CameraControls() {
   );
 }
 
+/** The Focus / Whole graph switch, compact enough for the phone sheet header. */
+export function FocusSwitch({ className = "" }: { className?: string }) {
+  const graphMode = useGita((s) => s.graphMode);
+  const setGraphMode = useGita((s) => s.setGraphMode);
+  const ego = useGita((s) => s.egoSummary);
+  const selectedId = useGita((s) => s.selectedId);
+  const highlight = useGita((s) => s.highlight);
+  if (!selectedId || highlight) return null;
+  const count = graphMode === "focus" && ego?.id === selectedId ? (ego.total > ego.shown ? `${ego.shown} of ${ego.total} connections` : `${ego.total} connection${ego.total === 1 ? "" : "s"}`) : "Shown in the whole graph";
+  return (
+    <div className={`flex items-center gap-2 ${className}`}>
+      <span className="num min-w-0 flex-1 truncate text-[12px] text-text-3">{count}</span>
+      <div className="seg shrink-0" role="group" aria-label="How much of the graph to show">
+        <button aria-pressed={graphMode === "focus"} onClick={() => setGraphMode("focus")}>
+          Focus
+        </button>
+        <button aria-pressed={graphMode === "world"} onClick={() => setGraphMode("world")}>
+          Whole graph
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** With something selected: what the focus view shows, and a switch between it and the whole graph. */
+function FocusBar() {
+  const selectedId = useGita((s) => s.selectedId);
+  const highlight = useGita((s) => s.highlight);
+  const graphMode = useGita((s) => s.graphMode);
+  const setGraphMode = useGita((s) => s.setGraphMode);
+  const ego = useGita((s) => s.egoSummary);
+  const graphs = useGita((s) => s.graphs);
+  const n = selectedId ? graphs?.nodeById.get(selectedId) : undefined;
+  if (!n || highlight) return null;
+  const name = n.type === "Verse" ? `BG ${n.ref}` : n.type === "Chapter" ? `Chapter ${n.number}` : n.label;
+  const count = graphMode === "focus" && ego?.id === n.id ? (ego.total > ego.shown ? `${ego.shown} of ${ego.total} connections` : `${ego.total} connection${ego.total === 1 ? "" : "s"}`) : "in the whole graph";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3 max-md:top-14">
+      <div className="hud pointer-events-auto flex max-w-[min(560px,100%)] items-center gap-2 py-1 pl-3 pr-1" role="status">
+        <NodeGlyph node={n} />
+        <span className="min-w-0 truncate text-[12.5px] font-medium text-text">{name}</span>
+        <span className="num shrink-0 text-[12px] text-text-3 max-[380px]:hidden">{count}</span>
+        <div className="seg shrink-0" role="group" aria-label="How much of the graph to show">
+          <button aria-pressed={graphMode === "focus"} onClick={() => setGraphMode("focus")} title="Just this and its connections, each labelled">
+            Focus
+          </button>
+          <button aria-pressed={graphMode === "world"} onClick={() => setGraphMode("world")} title="The whole Gita, with this highlighted">
+            Whole graph
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HighlightBanner() {
   const highlight = useGita((s) => s.highlight);
   const setHighlight = useGita((s) => s.setHighlight);
@@ -259,6 +314,8 @@ export function GraphHud() {
         <CameraControls />
       </div>
       <HighlightBanner />
+      {/* Phones carry the switch in the details sheet, keeping the graph area clear. */}
+      {!mobile && <FocusBar />}
       <GestureHint />
     </>
   );

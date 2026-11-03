@@ -12,6 +12,8 @@ import { KIND_META, NODE_HEX, nodeKind, typeName, type NodeKind } from "@/lib/gr
 import { useCoarsePointer, useIsDesktop, useIsMobile, useReducedMotion } from "@/lib/hooks/useMedia";
 import { loadLayout } from "@/lib/data/loader";
 import { RING_R, containForce, fixedPosition, linkDistance, linkStrength, placeThought } from "@/lib/graph/layoutParams";
+import { egoPositions, pickEgo, type EgoCandidate, type EgoPick } from "@/lib/graph/ego";
+import { sheetPx } from "@/components/layout/SidePanel";
 import type { GraphNode, NodeLabel, RelationType } from "@/lib/types";
 
 type NodeT = { id: string; type: NodeLabel; label: string; data: GraphNode };
@@ -30,6 +32,8 @@ function deviceTier(): "low" | "high" {
   const coarse = window.matchMedia?.("(pointer: coarse)").matches;
   return coarse || (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4 ? "low" : "high";
 }
+/** Height of the graph toolbar row on phones; the visible strip for the graph starts below it. */
+const TOP_HUD = 56;
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII"];
 const HOME = { x: 0, y: 520, z: 820 };
 /**
@@ -89,8 +93,8 @@ function ring(weight: number) {
 }
 
 /** A node label (canvas text sprite); created lazily, the first time it has to be visible. */
-function makeLabel(spec: NonNullable<NodeVisual["labelSpec"]>, font: string): SpriteText {
-  const l = new SpriteText(spec.text, spec.size, spec.color);
+function makeLabel(spec: NonNullable<NodeVisual["labelSpec"]>, font: string, scale = 1): SpriteText {
+  const l = new SpriteText(spec.text, spec.size * scale, spec.color);
   l.fontFace = font;
   l.fontWeight = spec.weight;
   l.strokeWidth = 0.9;
@@ -171,12 +175,14 @@ export default function CosmicGraph3D() {
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   const visuals = useRef(new Map<string, NodeVisual>());
+  const labelScale = useRef(1.3);
+  labelScale.current = mobile ? 1.6 : 1.3;
   const nodeCache = useRef(new Map<string, GNode>());
   const materials = useRef(new Map<string, THREE.Material>());
   const fontFace = useRef("Inter, system-ui, sans-serif");
   // Latest visual inputs for the frame loop; `dirty` asks it to re-apply materials and markers.
-  const live = useRef<{ emphasis: Emphasis | null; selectedId: string | null; hoverId: string | null; audioVerse: string | null; dark: boolean; material: MaterialFn | null; dirty: boolean }>({
-    emphasis: null, selectedId: null, hoverId: null, audioVerse: null, dark: true, material: null, dirty: true,
+  const live = useRef<{ emphasis: Emphasis | null; selectedId: string | null; hoverId: string | null; audioVerse: string | null; dark: boolean; material: MaterialFn | null; dirty: boolean; ego: Set<string> | null }>({
+    emphasis: null, selectedId: null, hoverId: null, audioVerse: null, dark: true, material: null, dirty: true, ego: null,
   });
 
   useEffect(() => {
@@ -225,13 +231,17 @@ export default function CosmicGraph3D() {
     };
   }, [graphs]);
   const fixed = !!layout;
+  const graphMode = useGita((s) => s.graphMode);
+  const sheetSnap = useGita((s) => s.sheetSnap);
+  // Focus view: a selection (without a path or answer highlight) shows just that node and its connections.
+  const egoId = graphMode === "focus" && selectedId && !highlight && graphs?.graph.hasNode(selectedId) ? selectedId : null;
   // Created once with the renderer: antialiasing only where there is headroom; let the browser pick the GPU ("default"),
   // which avoids waking a discrete GPU on laptops for a scene this light.
   const [rendererConfig] = useState(() => ({ antialias: tier === "high", powerPreference: "default" as const, alpha: false }));
 
   // ── graph data (re-filtered on layer changes; node objects are reused so positions persist) ──
   const data = useMemo(() => {
-    if (!graphs || layout === undefined) return { nodes: [] as GNode[], links: [] as GLink[] };
+    if (!graphs || layout === undefined) return { nodes: [] as GNode[], links: [] as GLink[], ego: null as { id: string; pick: EgoPick } | null };
     const nodes: GNode[] = [];
     const at = (id: string): Vec3 | undefined => layout?.get(id) ?? (fixedPosition(graphs.nodeById.get(id) as { id: string; type: string; number?: number }) || undefined);
     graphs.graph.forEachNode((id, attr) => {
@@ -259,16 +269,49 @@ export default function CosmicGraph3D() {
       n.data = attr;
       nodes.push(n);
     });
-    const visible = new Set(nodes.map((n) => n.id));
-    const links: GLink[] = [];
-    graphs.graph.forEachEdge((key, attr, s, t) => {
-      const group = RELATIONS[attr.type].group;
-      if (!edgeGroups[group] || !visible.has(s) || !visible.has(t)) return;
-      links.push({ key, source: s, target: t, type: attr.type, group, ...(group === "personal" && isSuggestedEdge(attr.props) ? { suggested: true } : {}) });
-    });
-    return { nodes, links };
+    const linksAmong = (visible: Set<string>) => {
+      const links: GLink[] = [];
+      graphs.graph.forEachEdge((key, attr, s, t) => {
+        const group = RELATIONS[attr.type].group;
+        if (!edgeGroups[group] || !visible.has(s) || !visible.has(t)) return;
+        links.push({ key, source: s, target: t, type: attr.type, group, ...(group === "personal" && isSuggestedEdge(attr.props) ? { suggested: true } : {}) });
+      });
+      return links;
+    };
+
+    // Focus view: the selected node in place, and a fair selection of its connections arranged around it, so every
+    // point can carry a label (the whole graph lights up hundreds of unlabelled neighbours for a hub like Kṛṣṇa).
+    const center = egoId ? nodeCache.current.get(egoId) : undefined;
+    if (egoId && center && nodes.includes(center)) {
+      const g = graphs.graph;
+      const shown = new Set(nodes.map((n) => n.id));
+      const cands: EgoCandidate[] = [];
+      const add = (other: string, type: RelationType, outgoing: boolean) => {
+        const group = RELATIONS[type].group;
+        if (other !== egoId && shown.has(other) && edgeGroups[group]) cands.push({ id: other, type, group, outgoing, degree: g.degree(other) });
+      };
+      g.forEachOutEdge(egoId, (_k, a, _s, t) => add(t, a.type, true));
+      g.forEachInEdge(egoId, (_k, a, s) => add(s, a.type, false));
+      const pick = pickEgo(cands, mobile ? 28 : 40);
+      const c: Vec3 = [center.fx ?? center.x ?? 0, center.fy ?? center.y ?? 0, center.fz ?? center.z ?? 0];
+      const members = pick.members.map((m) => nodeCache.current.get(m.id)!).filter(Boolean);
+      egoPositions(c, members.length).forEach((p, i) => {
+        const n = members[i];
+        n.fx = n.x = p[0];
+        n.fy = n.y = p[1];
+        n.fz = n.z = p[2];
+      });
+      const egoNodes = [center, ...members];
+      return { nodes: egoNodes, links: linksAmong(new Set(egoNodes.map((n) => String(n.id)))), ego: { id: egoId, pick } };
+    }
+    return { nodes, links: linksAmong(new Set(nodes.map((n) => String(n.id)))), ego: null as { id: string; pick: EgoPick } | null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphs, graphVersion, layers, edgeGroups, layout]);
+  }, [graphs, graphVersion, layers, edgeGroups, layout, egoId, mobile]);
+  const egoRef = useRef<string | null>(null);
+  egoRef.current = data.ego?.id ?? null;
+  useEffect(() => {
+    useGita.setState({ egoSummary: data.ego ? { id: data.ego.id, shown: data.ego.pick.members.length, total: data.ego.pick.total } : null });
+  }, [data]);
 
   // ── forces: only when laying out live. With a precomputed layout every node is fixed and no force runs. ──
   useEffect(() => {
@@ -428,7 +471,8 @@ export default function CosmicGraph3D() {
 
   // Visual state (materials, selection/recitation rings, verse labels) is reconciled in the frame loop whenever it is
   // marked dirty, because the graph builds node objects asynchronously after React effects run.
-  live.current = { ...live.current, emphasis, selectedId, hoverId, audioVerse, dark, material };
+  const egoSet = useMemo(() => (data.ego ? new Set(data.nodes.map((n) => String(n.id))) : null), [data]);
+  live.current = { ...live.current, emphasis, selectedId, hoverId, audioVerse, dark, material, ego: egoSet };
   useEffect(() => {
     live.current.dirty = true;
   }, [emphasis, selectedId, hoverId, audioVerse, dark, material, nodeObject]);
@@ -462,6 +506,8 @@ export default function CosmicGraph3D() {
     m.audio = place(m.audio, aud && aud !== sel ? aud : null, 5.2, 0.6);
     // Verses carry no permanent labels; the focused ones get their reference.
     const want = new Set([sel, hov, aud].filter((x): x is string => !!x && x.startsWith("BG_")));
+    // In the focus view every verse shown gets its reference.
+    if (live.current.ego) for (const id of live.current.ego) if (id.startsWith("BG_")) want.add(id);
     if (e?.kind === "highlight" && e.nodes.size <= 40) for (const id of e.nodes) if (id.startsWith("BG_")) want.add(id);
     for (const [id, l] of m.verseLabels) {
       if (want.has(id) && l.parent === visuals.current.get(id)?.group) continue;
@@ -471,7 +517,7 @@ export default function CosmicGraph3D() {
     for (const id of want) {
       const v = visuals.current.get(id);
       if (!v || m.verseLabels.has(id)) continue;
-      const l = new SpriteText(id.replace("BG_", ""), 4.6, dk ? "#edeae4" : "#1b1a17");
+      const l = new SpriteText(id.replace("BG_", "BG "), 4.6 * (live.current.ego ? labelScale.current : 1), dk ? "#edeae4" : "#1b1a17");
       l.fontFace = fontFace.current;
       l.fontWeight = "600";
       l.strokeWidth = 0.9;
@@ -510,7 +556,7 @@ export default function CosmicGraph3D() {
         fog.far = d + 1350;
       }
       const { emphasis: e, selectedId: sel, hoverId: hov } = live.current;
-      const forceAll = !!e && e.nodes.size <= 60;
+      const forceAll = !!live.current.ego || (!!e && e.nodes.size <= 60);
       for (const [id, v] of visuals.current) {
         if (!v.label && !v.labelSpec) continue;
         const on = !e || e.nodes.has(id);
@@ -526,7 +572,7 @@ export default function CosmicGraph3D() {
         if (v.labelOpacity === target) continue;
         if (!v.label) {
           if (target <= 0.02 || !v.labelSpec) continue;
-          v.label = makeLabel(v.labelSpec, fontFace.current);
+          v.label = makeLabel(v.labelSpec, fontFace.current, live.current.ego?.has(id) ? labelScale.current : 1);
           v.group.add(v.label);
         }
         fading = true;
@@ -709,6 +755,99 @@ export default function CosmicGraph3D() {
   useEffect(() => {
     wake(1500);
   }, [fgData, emphasis, selectedId, hoverId, audioVerse, dark, colorBy, size, autoRotate, wake]);
+  // ── focus view: one relation tag per kind of connection ("speaks · 574"), on a representative line ──
+  useEffect(() => {
+    const fg = fgRef.current;
+    const ego = data.ego;
+    const center = ego ? nodeCache.current.get(ego.id) : undefined;
+    if (!fg || !ego || !center) return;
+    const group = new THREE.Group();
+    group.name = "gv-ego-relations";
+    const done = new Set<string>();
+    for (const m of ego.pick.members) {
+      const k = `${m.type}|${m.outgoing}`;
+      const n = nodeCache.current.get(m.id);
+      if (done.has(k) || !n) continue;
+      done.add(k);
+      const meta = RELATIONS[m.type as RelationType];
+      const kind = ego.pick.kinds.find((x) => x.type === m.type && x.outgoing === m.outgoing);
+      const text = `${m.outgoing ? meta.verb : meta.inverse}${kind && kind.total > kind.shown ? ` · ${kind.total}` : ""}`;
+      const tag = new SpriteText(text, mobile ? 4.8 : 4.2, dark ? "#e8c58a" : "#7a4708");
+      tag.fontFace = fontFace.current;
+      tag.fontWeight = "500";
+      tag.backgroundColor = dark ? "rgba(21,20,19,0.9)" : "rgba(255,255,255,0.92)";
+      tag.borderColor = dark ? "rgba(227,164,75,0.45)" : "rgba(154,90,12,0.4)";
+      tag.borderWidth = 0.3;
+      tag.borderRadius = 1.4;
+      tag.padding = [1.6, 0.9];
+      tag.material.depthTest = false;
+      tag.material.depthWrite = false;
+      tag.renderOrder = 12;
+      const t = 0.55;
+      tag.position.set((center.fx ?? 0) + ((n.fx ?? 0) - (center.fx ?? 0)) * t, (center.fy ?? 0) + ((n.fy ?? 0) - (center.fy ?? 0)) * t, (center.fz ?? 0) + ((n.fz ?? 0) - (center.fz ?? 0)) * t);
+      group.add(tag);
+    }
+    const scene = fg.scene();
+    scene.add(group);
+    wake(900);
+    return () => {
+      scene.remove(group);
+      for (const o of group.children as SpriteText[]) {
+        o.material.map?.dispose();
+        o.material.dispose();
+      }
+    };
+  }, [data, dark, wake, mobile]);
+
+  // Focus view labels are larger (phones especially), so a neighbourhood framed to fit the screen stays readable.
+  useEffect(() => {
+    const k = labelScale.current;
+    for (const [id, v] of visuals.current) {
+      if (!v.label || !v.labelSpec) continue;
+      const want = v.labelSpec.size * (egoSet?.has(id) ? k : 1);
+      if (v.label.textHeight !== want) v.label.textHeight = want;
+    }
+    // Verse references are rebuilt at the right size by the next reconcile.
+    for (const l of marks.current.verseLabels.values()) l.parent?.remove(l);
+    marks.current.verseLabels.clear();
+    live.current.dirty = true;
+    wake(600);
+  }, [egoSet, wake]);
+
+  // Frame the focus neighbourhood when it opens (above the sheet on phones), instead of flying close to one node.
+  const egoKey = data.ego?.id ?? null;
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || !egoKey) return;
+    const ids = new Set(data.nodes.map((n) => String(n.id)));
+    wake(1800);
+    // Fit the neighbourhood into the part of the screen that is actually visible: below the toolbar and, on phones,
+    // above the sheet (the projection is already shifted to centre that strip).
+    const fit = () => {
+      const cam = fg.camera() as THREE.PerspectiveCamera;
+      const center = nodeCache.current.get(egoKey);
+      if (!center) return;
+      const c = new THREE.Vector3(center.fx ?? 0, center.fy ?? 0, center.fz ?? 0);
+      let r = 30;
+      for (const n of data.nodes) r = Math.max(r, Math.hypot((n.fx ?? 0) - c.x, (n.fy ?? 0) - c.y, (n.fz ?? 0) - c.z));
+      r += mobile ? 14 : 18;
+      const { w, h } = size;
+      const visH = Math.max(140, h - (mobile ? sheetPx(sheetSnap, h) + TOP_HUD : 110));
+      const visW = Math.max(160, w - (mobile ? 16 : 80));
+      const tan = Math.tan((cam.fov * Math.PI) / 360);
+      const d = Math.max(r / (tan * (visH / h)), r / (tan * cam.aspect * (visW / w)));
+      const target = (fg.controls() as { target?: THREE.Vector3 }).target ?? new THREE.Vector3();
+      const dir = cam.position.clone().sub(target);
+      if (dir.lengthSq() < 1) dir.set(0, 0.45, 1);
+      dir.normalize();
+      const pos = c.clone().add(dir.multiplyScalar(d));
+      fg.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: c.x, y: c.y, z: c.z }, reduceMotion ? 0 : 800);
+    };
+    const t = setTimeout(() => (ids.size ? fit() : undefined), 90);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [egoKey, mobile ? sheetSnap : null]);
+
   useEffect(() => {
     // Development-only handles for performance checks (renderer stats, current data).
     if (process.env.NODE_ENV !== "production") Object.assign(window, { __gvGraph: fgRef.current, __gvGraphData: fgData });
@@ -748,11 +887,12 @@ export default function CosmicGraph3D() {
     const cam = fgRef.current?.camera() as THREE.PerspectiveCamera | undefined;
     if (!cam?.setViewOffset) return;
     const { w, h } = size;
-    if (dockOpen && mobile) cam.setViewOffset(w, h, 0, h * 0.27, w, h);
+    // Phones: shift the picture up by half the sheet, so what is selected sits in the part still visible above it.
+    if (dockOpen && mobile) cam.setViewOffset(w, h, 0, (sheetPx(chatOpen && !selectedId ? "full" : sheetSnap, h) - TOP_HUD) / 2, w, h);
     else if (dockOpen && !desktop) cam.setViewOffset(w, h, 200, 0, w, h);
     else cam.clearViewOffset();
     cam.updateProjectionMatrix();
-  }, [dockOpen, mobile, desktop, size]);
+  }, [dockOpen, mobile, desktop, size, sheetSnap, chatOpen, selectedId]);
 
   // Pause rendering when the tab is hidden.
   useEffect(() => {
@@ -776,6 +916,9 @@ export default function CosmicGraph3D() {
     const fg = fgRef.current;
     const n = nodeCache.current.get(id);
     if (!fg || !n || n.x === undefined) return;
+    // The focus view frames the whole neighbourhood itself; a close fly-in (e.g. one queued before the layout loaded)
+    // would undo that.
+    if (egoRef.current === id) return;
     useGita.getState().setAutoRotate(false);
     wake(reduceMotion ? 400 : 1600);
     const { x = 0, y = 0, z = 0 } = n;
@@ -786,6 +929,8 @@ export default function CosmicGraph3D() {
   }, [reduceMotion, wake]);
   useEffect(() => {
     if (!flyTo) return;
+    // The focus view frames its own neighbourhood (below) instead of flying close to one node.
+    if (egoRef.current && egoRef.current === flyTo.id) return;
     if (settled.current) flyToNode(flyTo.id);
     else pendingFly.current = flyTo.id;
   }, [flyTo, flyToNode]);

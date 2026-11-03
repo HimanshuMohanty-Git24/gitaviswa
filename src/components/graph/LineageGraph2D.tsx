@@ -12,6 +12,7 @@ import { useIsMobile } from "@/lib/hooks/useMedia";
 import type { Chain, GraphNode, RelationType, Verse, VersesDoc } from "@/lib/types";
 import { NodeGlyph } from "@/components/ui/primitives";
 import { NodePicker } from "./NodePicker";
+import { getReadingPosition } from "@/lib/store/readingPosition";
 
 type Role = "up" | "core" | "down";
 interface LData extends Record<string, unknown> {
@@ -345,6 +346,17 @@ function useFocus() {
   const focus = lineageFocus && graphs?.graph.hasNode(lineageFocus) ? lineageFocus : "BG_2.47";
   const focusRef = useRef(focus);
   focusRef.current = focus;
+  // Opening Lineage with nothing selected and nothing traced yet: start from the verse being read, not a fixed verse.
+  useEffect(() => {
+    const s = useGita.getState();
+    if (s.selectedId) return;
+    let traced: string | null = null;
+    try {
+      traced = localStorage.getItem("gitaviswa:lineage-focus");
+    } catch {}
+    const pos = getReadingPosition();
+    if (!traced && pos && s.graphs?.graph.hasNode(pos.verse) && pos.verse !== s.lineageFocus) useGita.setState({ lineageFocus: pos.verse });
+  }, []);
   const go = (id: string, push = true) => {
     if (id === focusRef.current) return;
     if (push) setHistory((h) => [...h.slice(-30), focusRef.current]);

@@ -75,6 +75,12 @@ interface GitaState {
   enAuthor: number;
   hiAuthor: number;
   flyTo: { id: string; nonce: number } | null;
+  /** Explore: a selected node shows just it and its connections ("focus"), or stays in the whole graph ("world"). */
+  graphMode: "world" | "focus";
+  /** What the focus view is showing, for the toolbar (set by the graph). */
+  egoSummary: { id: string; shown: number; total: number } | null;
+  /** Phone bottom sheet height: a peek keeps the graph visible; half suits reading; full for long content. */
+  sheetSnap: "peek" | "half" | "full";
 
   init: () => Promise<void>;
   ragContext: () => RagContext | null;
@@ -104,6 +110,19 @@ interface GitaState {
   setTranslationLang: (l: string) => void;
   setAuthors: (en?: number, hi?: number) => void;
   fly: (id: string) => void;
+  setGraphMode: (m: "world" | "focus") => void;
+  setSheetSnap: (s: "peek" | "half" | "full") => void;
+}
+
+/** Lineage opens on what was last traced, else the verse last read, else BG 2.47 (first visit). */
+function startingLineage(graphs: GitaGraphs): string {
+  try {
+    const last = localStorage.getItem("gitaviswa:lineage-focus");
+    if (last && graphs.graph.hasNode(last)) return last;
+    const read = JSON.parse(localStorage.getItem("gitaviswa:reading") || "null") as { verse?: string } | null;
+    if (read?.verse && graphs.graph.hasNode(read.verse)) return read.verse;
+  } catch {}
+  return "BG_2.47";
 }
 
 const PREFS = "gitaviswa:prefs";
@@ -151,7 +170,8 @@ export const useGita = create<GitaState>((set, get) => ({
   autoRotate: true,
   selectedId: null,
   lineageFocus: "BG_2.47",
-  readerChapter: 2,
+  // First visits start at the beginning; afterwards the saved reading position takes over (page.tsx).
+  readerChapter: 1,
   lessonOpen: false,
   highlight: null,
   hoverStem: null,
@@ -167,6 +187,9 @@ export const useGita = create<GitaState>((set, get) => ({
   enAuthor: 16,
   hiAuthor: 17,
   flyTo: null,
+  graphMode: "focus",
+  egoSummary: null,
+  sheetSnap: "half",
 
   init: async () => {
     if (get().status === "loading" || get().status === "ready") return;
@@ -186,6 +209,14 @@ export const useGita = create<GitaState>((set, get) => ({
         ...mine,
         versesById: new Map(versesDoc.verses.map((v) => [v.id, v])),
         ...readingPrefs(versesDoc),
+        lineageFocus: startingLineage(graphs),
+        graphMode: (() => {
+          try {
+            return localStorage.getItem("gitaviswa:graph-mode") === "world" ? "world" : "focus";
+          } catch {
+            return "focus";
+          }
+        })(),
         status: "ready",
         graphVersion: 1,
       });
@@ -265,6 +296,13 @@ export const useGita = create<GitaState>((set, get) => ({
   setTranslationLang: (translationLang) => (set({ translationLang }), savePrefs(get())),
   setAuthors: (en, hi) => (set({ ...(en ? { enAuthor: en } : {}), ...(hi ? { hiAuthor: hi } : {}) }), savePrefs(get())),
   fly: (id) => set({ flyTo: { id, nonce: Date.now() } }),
+  setGraphMode: (graphMode) => {
+    set({ graphMode });
+    try {
+      localStorage.setItem("gitaviswa:graph-mode", graphMode);
+    } catch {}
+  },
+  setSheetSnap: (sheetSnap) => set({ sheetSnap }),
   setTheme: (theme) => set({ theme }),
   setDockTab: (dockTab) => set({ dockTab }),
   setWelcomeOpen: (welcomeOpen) => {
@@ -284,3 +322,12 @@ export function effectiveTheme(pref: ThemePref): "dark" | "light" {
   if (typeof window === "undefined" || !window.matchMedia) return "dark";
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
+
+// Remember the lineage focus between visits (it is changed from several places: nav, details, the lineage itself).
+if (typeof window !== "undefined")
+  useGita.subscribe((s, prev) => {
+    if (s.lineageFocus && s.lineageFocus !== prev.lineageFocus && !s.lineageFocus.startsWith("thought:"))
+      try {
+        localStorage.setItem("gitaviswa:lineage-focus", s.lineageFocus);
+      } catch {}
+  });

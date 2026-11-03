@@ -60,7 +60,11 @@ export function NodeInspector({ nodeId, onClose }: { nodeId: string; onClose: ()
   const nb = useMemo(() => (graphs ? neighbors(graphs, nodeId) : []), [graphs, nodeId]);
   if (!n || !graphs) return null;
 
-  const of = (types: RelationType[], outgoing?: boolean) => nb.filter((x) => types.includes(x.type) && (outgoing === undefined || x.outgoing === outgoing));
+  // Each neighbour once per section (two relations between the same pair, e.g. both directions, would repeat it).
+  const of = (types: RelationType[], outgoing?: boolean) => {
+    const seen = new Set<string>();
+    return nb.filter((x) => types.includes(x.type) && (outgoing === undefined || x.outgoing === outgoing) && !seen.has(x.id) && !!seen.add(x.id));
+  };
   const sections: [string, Neighbor[]][] = [];
   switch (n.type) {
     case "Emotion":
