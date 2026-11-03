@@ -189,9 +189,8 @@ export const useGita = create<GitaState>((set, get) => ({
         status: "ready",
         graphVersion: 1,
       });
-      // Communities & the search index are built off the critical path.
+      // The search index is built off the critical path.
       const idle = (fn: () => void) => (typeof window !== "undefined" && "requestIdleCallback" in window ? window.requestIdleCallback(fn, { timeout: 1200 }) : setTimeout(fn, 50));
-      idle(() => set({ communities: detectCommunities(graphs) }));
       idle(async () => {
         set({ indexStatus: "building" });
         try {
@@ -253,7 +252,12 @@ export const useGita = create<GitaState>((set, get) => ({
   toggleLayer: (l) => set({ layers: { ...get().layers, [l]: !get().layers[l] } }),
   setLayer: (l, on) => set({ layers: { ...get().layers, [l]: on } }),
   toggleEdgeGroup: (g) => set({ edgeGroups: { ...get().edgeGroups, [g]: !get().edgeGroups[g] } }),
-  setColorBy: (colorBy) => set({ colorBy }),
+  // Louvain communities are only needed for "colour by community", so they are computed the first time it is chosen.
+  setColorBy: (colorBy) => {
+    set({ colorBy });
+    const { graphs, communities } = get();
+    if (colorBy === "community" && !communities && graphs) setTimeout(() => set({ communities: detectCommunities(graphs) }), 0);
+  },
   setChatOpen: (chatOpen) => set(chatOpen ? { chatOpen, dockTab: "ask" } : { chatOpen, dockTab: "details" }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setSettingsOpen: (settingsOpen, section) => set({ settingsOpen, settingsSection: section ?? null }),

@@ -12,9 +12,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc -p tests",
     "test": "node --test tests/*.test.ts",
-    "data": "node scripts/build-gita-knowledge-graph.mjs",
-    "data:offline": "node scripts/build-gita-knowledge-graph.mjs --offline",
+    "data": "node scripts/build-gita-knowledge-graph.mjs && node scripts/build-layout.mjs",
+    "data:offline": "node scripts/build-gita-knowledge-graph.mjs --offline && node scripts/build-layout.mjs",
     "data:embeddings": "node scripts/build-embeddings.mjs",
+    "data:layout": "node scripts/build-layout.mjs",
     "data:verify": "node scripts/verify-graph.mjs"
   },
   "dependencies": {

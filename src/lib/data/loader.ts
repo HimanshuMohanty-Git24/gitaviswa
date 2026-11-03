@@ -27,6 +27,22 @@ export function loadGraph(): Promise<GraphData> {
   return graphPromise;
 }
 
+export interface LayoutDoc {
+  kind: "gitaviswa-layout";
+  version: number;
+  nodeCount: number;
+  positions: Record<string, [number, number, number]>;
+}
+let layoutPromise: Promise<LayoutDoc | null> | null = null;
+/** Precomputed 3D positions (scripts/build-layout.mjs). Null when absent or unreadable: the graph then lays itself out live. */
+export function loadLayout(): Promise<LayoutDoc | null> {
+  layoutPromise ??= fetch("/data/gita-layout.json", { cache: "force-cache" })
+    .then((r) => (r.ok ? (r.json() as Promise<LayoutDoc>) : null))
+    .then((d) => (d && d.kind === "gitaviswa-layout" && d.positions ? d : null))
+    .catch(() => null);
+  return layoutPromise;
+}
+
 /** Per-verse multi-author commentary, lazy-loaded on demand (null when the build ran without commentary). */
 export function loadCommentary(verseId: string): Promise<CommentaryDoc | null> {
   if (!commentaryCache.has(verseId)) {

@@ -10,14 +10,26 @@ import { isSuggestedEdge } from "@/lib/graph/graphStore";
 import { communityColor } from "@/lib/graph/communities";
 import { KIND_META, NODE_HEX, nodeKind, typeName, type NodeKind } from "@/lib/graph/palette";
 import { useCoarsePointer, useIsDesktop, useIsMobile, useReducedMotion } from "@/lib/hooks/useMedia";
+import { loadLayout } from "@/lib/data/loader";
+import { RING_R, containForce, fixedPosition, linkDistance, linkStrength, placeThought } from "@/lib/graph/layoutParams";
 import type { GraphNode, NodeLabel, RelationType } from "@/lib/types";
 
 type NodeT = { id: string; type: NodeLabel; label: string; data: GraphNode };
 type LinkT = { key: string; type: RelationType; group: RelationGroup; suggested?: boolean };
 type GNode = NodeObject<NodeT>;
 type GLink = LinkObject<NodeT, LinkT>;
+type Vec3 = [number, number, number];
 
-const RING_R = 380;
+/**
+ * Rendering budget. "low" for touch devices and machines with few cores or little memory: no antialiasing and a lower
+ * pixel ratio (fill rate dominates on high-density phone screens). Decided once, before the renderer is created.
+ */
+function deviceTier(): "low" | "high" {
+  if (typeof window === "undefined") return "high";
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const coarse = window.matchMedia?.("(pointer: coarse)").matches;
+  return coarse || (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4 ? "low" : "high";
+}
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII"];
 const HOME = { x: 0, y: 520, z: 820 };
 /**
@@ -30,15 +42,6 @@ function homePosition(w: number, h: number) {
   const base = aspect < 0.9 ? { x: 0, y: 700, z: 640 } : HOME;
   return { x: base.x * k, y: base.y * k, z: base.z * k };
 }
-
-const LINK_DIST: Partial<Record<RelationType, number>> = {
-  BELONGS_TO: 30, NEXT_VERSE: 9, SPOKE: 240, NARRATED: 240, ADDRESSES: 60, MENTIONS_CHARACTER: 180, MENTIONS_CONCEPT: 120,
-  MENTIONS_STATE: 120, EXPOUNDS: 150, NEXT_CHAPTER: 120,
-};
-const LINK_STR: Partial<Record<RelationType, number>> = {
-  BELONGS_TO: 0.9, NEXT_VERSE: 0.5, SPOKE: 0.003, NARRATED: 0.003, ADDRESSES: 0.02, MENTIONS_CHARACTER: 0.008, MENTIONS_CONCEPT: 0.025,
-  MENTIONS_STATE: 0.025, EXPOUNDS: 0.04, NEXT_CHAPTER: 0,
-};
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const smooth = (a: number, b: number, x: number) => {
@@ -54,11 +57,13 @@ function chapterTone(ch: number, dark: boolean) {
 
 // ── shared GPU resources (one geometry per detail level, one texture per ring weight) ────────────
 const geoCache = new Map<string, THREE.BufferGeometry>();
-const sphere = (detail: "lo" | "mid" | "hi") => {
-  let g = geoCache.get(detail);
+const sphere = (detail: "lo" | "mid" | "hi", low = false) => {
+  const key = low ? `${detail}-low` : detail;
+  let g = geoCache.get(key);
   if (!g) {
-    g = detail === "lo" ? new THREE.SphereGeometry(1, 10, 8) : detail === "mid" ? new THREE.SphereGeometry(1, 22, 16) : new THREE.SphereGeometry(1, 36, 26);
-    geoCache.set(detail, g);
+    const [w, h] = { lo: low ? [8, 6] : [10, 8], mid: low ? [14, 10] : [22, 16], hi: low ? [24, 16] : [36, 26] }[detail];
+    g = new THREE.SphereGeometry(1, w, h);
+    geoCache.set(key, g);
   }
   return g;
 };
@@ -83,6 +88,20 @@ function ring(weight: number) {
   return t;
 }
 
+/** A node label (canvas text sprite); created lazily, the first time it has to be visible. */
+function makeLabel(spec: NonNullable<NodeVisual["labelSpec"]>, font: string): SpriteText {
+  const l = new SpriteText(spec.text, spec.size, spec.color);
+  l.fontFace = font;
+  l.fontWeight = spec.weight;
+  l.strokeWidth = 0.9;
+  l.strokeColor = spec.stroke;
+  l.material.depthWrite = false;
+  l.material.opacity = 0;
+  l.visible = false;
+  l.position.y = spec.y;
+  return l;
+}
+
 interface Emphasis {
   nodes: Set<string>;
   edges: Set<string>;
@@ -97,6 +116,8 @@ interface NodeVisual {
   mesh: THREE.Mesh | null;
   ringSprite: THREE.Sprite | null;
   label: SpriteText | null;
+  /** Not yet created: built the first time the label has to appear, so ~140 canvases aren't drawn at start-up. */
+  labelSpec: { text: string; size: number; color: string; weight: string; stroke: string; y: number } | null;
   kind: NodeKind;
   color: string;
   r: number;
@@ -186,27 +207,54 @@ export default function CosmicGraph3D() {
     return { of: m, max };
   }, [graphs]);
 
+  // ── layout: precomputed positions when available (no simulation at all), else the live force layout ──
+  const [tier] = useState(deviceTier);
+  const [layout, setLayout] = useState<Map<string, Vec3> | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    loadLayout().then((doc) => {
+      if (!live) return;
+      const m = doc ? new Map(Object.entries(doc.positions)) : null;
+      // Only trust it if it describes (nearly) this graph; otherwise fall back to laying out live.
+      const publicIds = graphs ? [...graphs.nodeById.values()].filter((n) => n.type !== "PersonalThought").map((n) => n.id) : [];
+      const covered = m && publicIds.length ? publicIds.filter((id) => m.has(id)).length / publicIds.length : 0;
+      setLayout(m && covered >= 0.95 ? m : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [graphs]);
+  const fixed = !!layout;
+  // Created once with the renderer: antialiasing only where there is headroom; let the browser pick the GPU ("default"),
+  // which avoids waking a discrete GPU on laptops for a scene this light.
+  const [rendererConfig] = useState(() => ({ antialias: tier === "high", powerPreference: "default" as const, alpha: false }));
+
   // ── graph data (re-filtered on layer changes; node objects are reused so positions persist) ──
   const data = useMemo(() => {
-    if (!graphs) return { nodes: [] as GNode[], links: [] as GLink[] };
+    if (!graphs || layout === undefined) return { nodes: [] as GNode[], links: [] as GLink[] };
     const nodes: GNode[] = [];
+    const at = (id: string): Vec3 | undefined => layout?.get(id) ?? (fixedPosition(graphs.nodeById.get(id) as { id: string; type: string; number?: number }) || undefined);
     graphs.graph.forEachNode((id, attr) => {
       if (!layers[attr.type]) return;
       let n = nodeCache.current.get(id);
       if (!n) {
         n = { id, type: attr.type, label: attr.label, data: attr };
-        if (attr.type === "Chapter") {
-          const th = ((attr.number - 1) / 18) * Math.PI * 2;
-          n.fx = RING_R * Math.cos(th);
-          n.fz = RING_R * Math.sin(th);
-          n.fy = 26 * Math.sin(th * 3);
-        }
-        if (id === "character:krishna") {
-          n.fx = 0;
-          n.fy = 0;
-          n.fz = 0;
-        }
         nodeCache.current.set(id, n);
+      }
+      let p: Vec3 | undefined | null = layout ? at(id) : fixedPosition(attr as { id: string; type: string; number?: number });
+      // Personal thoughts (and anything the file doesn't cover) sit just above what they connect to.
+      if (layout && !p) {
+        const targets: Vec3[] = [];
+        graphs.graph.forEachOutNeighbor(id, (t) => {
+          const q = at(t);
+          if (q) targets.push(q);
+        });
+        p = placeThought(id, targets);
+      }
+      if (p) {
+        n.fx = n.x = p[0];
+        n.fy = n.y = p[1];
+        n.fz = n.z = p[2];
       }
       n.data = attr;
       nodes.push(n);
@@ -220,36 +268,24 @@ export default function CosmicGraph3D() {
     });
     return { nodes, links };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphs, graphVersion, layers, edgeGroups]);
+  }, [graphs, graphVersion, layers, edgeGroups, layout]);
 
-  // ── forces ──
+  // ── forces: only when laying out live. With a precomputed layout every node is fixed and no force runs. ──
   useEffect(() => {
     const fg = fgRef.current;
-    if (!fg) return;
+    if (!fg || layout === undefined) return;
+    if (fixed) {
+      fg.d3Force("link", null);
+      fg.d3Force("charge", null);
+      fg.d3Force("center", null);
+      return;
+    }
     const link = fg.d3Force("link");
-    link?.distance?.((l: GLink) => LINK_DIST[l.type] ?? 85).strength?.((l: GLink) => LINK_STR[l.type] ?? 0.07);
+    link?.distance?.((l: GLink) => linkDistance(l.type)).strength?.((l: GLink) => linkStrength(l.type));
     fg.d3Force("charge")?.strength?.(-22).distanceMax?.(420);
-    // Keep the cosmos inside its wheel: ontology inside the inner circle, verses near the rim, all near the plane.
-    let nodes: GNode[] = [];
-    const contain = Object.assign(
-      (alpha: number) => {
-        for (const n of nodes) {
-          if (n.fx !== undefined || n.x === undefined || n.z === undefined) continue;
-          const r = Math.hypot(n.x, n.z);
-          const max = n.type === "Verse" ? RING_R * 1.2 : RING_R * 0.72;
-          if (r > max) {
-            const k = ((r - max) / r) * alpha * 0.35;
-            n.vx = (n.vx ?? 0) - n.x * k;
-            n.vz = (n.vz ?? 0) - n.z * k;
-          }
-          n.vy = (n.vy ?? 0) - (n.y ?? 0) * alpha * 0.03;
-        }
-      },
-      { initialize: (ns: GNode[]) => (nodes = ns) },
-    );
-    fg.d3Force("contain", contain);
+    fg.d3Force("contain", containForce());
     fg.d3ReheatSimulation();
-  }, [data]);
+  }, [data, fixed, layout]);
 
   // ── scene: lighting, depth fog and a single reference circle through the 18 chapters ──
   useEffect(() => {
@@ -276,14 +312,15 @@ export default function CosmicGraph3D() {
     scene.add(group);
 
     const r = fg.renderer();
-    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    // High-density phone screens cost fill rate; 1.5x looks sharp on them at a fraction of the work.
+    r.setPixelRatio(Math.min(tier === "low" ? 1.5 : 2, window.devicePixelRatio || 1));
     r.toneMapping = THREE.NoToneMapping;
     return () => {
       scene.remove(group);
       circle.geometry.dispose();
       (circle.material as THREE.Material).dispose();
     };
-  }, [dark]);
+  }, [dark, tier]);
 
   const baseColor = useCallback(
     (n: GNode): string => {
@@ -326,8 +363,11 @@ export default function CosmicGraph3D() {
       const group = new THREE.Group();
       let mesh: THREE.Mesh | null = null;
       if (kind !== "dilemma") {
-        mesh = new THREE.Mesh(sphere(kind === "verse" ? "lo" : kind === "chapter" || r > 5 ? "hi" : "mid"), material(color, "base"));
+        mesh = new THREE.Mesh(sphere(kind === "verse" ? "lo" : kind === "chapter" || r > 5 ? "hi" : "mid", tier === "low"), material(color, "base"));
         mesh.scale.setScalar(r);
+        // With a fixed layout the 701 verses are drawn in one instanced batch; this mesh stays (invisible, so it costs no
+        // draw call) because raycasting ignores visibility, keeping hover, tooltips and clicks exactly as they were.
+        if (fixed && kind === "verse") mesh.visible = false;
         group.add(mesh);
       }
       let ringSprite: THREE.Sprite | null = null;
@@ -339,24 +379,28 @@ export default function CosmicGraph3D() {
         group.add(ringSprite);
       }
       let label: SpriteText | null = null;
+      let labelSpec: NodeVisual["labelSpec"] = null;
       if (kind !== "verse") {
-        const text = d.type === "Chapter" ? `${ROMAN[d.number]}  ${d.title}` : d.label;
-        label = new SpriteText(text, kind === "chapter" ? 8.5 : d.id === "character:krishna" ? 6.4 : 5, dark ? (kind === "chapter" ? "#edeae4" : "#cfc9bf") : kind === "chapter" ? "#1b1a17" : "#3a3732");
-        label.fontFace = fontFace.current;
-        label.fontWeight = kind === "chapter" ? "600" : "500";
-        label.strokeWidth = 0.9;
-        label.strokeColor = dark ? "rgba(13,12,11,0.85)" : "rgba(245,244,241,0.9)";
-        label.material.depthWrite = false;
-        label.material.opacity = kind === "chapter" ? 0.92 : 0;
-        label.visible = kind === "chapter";
-        label.position.y = r + (kind === "chapter" ? 10.5 : 6.5);
-        group.add(label);
+        labelSpec = {
+          text: d.type === "Chapter" ? `${ROMAN[d.number]}  ${d.title}` : d.label,
+          size: kind === "chapter" ? 8.5 : d.id === "character:krishna" ? 6.4 : 5,
+          color: dark ? (kind === "chapter" ? "#edeae4" : "#cfc9bf") : kind === "chapter" ? "#1b1a17" : "#3a3732",
+          weight: kind === "chapter" ? "600" : "500",
+          stroke: dark ? "rgba(13,12,11,0.85)" : "rgba(245,244,241,0.9)",
+          y: r + (kind === "chapter" ? 10.5 : 6.5),
+        };
+        if (kind === "chapter") {
+          label = makeLabel(labelSpec, fontFace.current);
+          label.material.opacity = 0.92;
+          label.visible = true;
+          group.add(label);
+        }
       }
-      visuals.current.set(n.id, { group, mesh, ringSprite, label, kind, color, r, labelOpacity: label?.material.opacity ?? 0 });
+      visuals.current.set(n.id, { group, mesh, ringSprite, label, labelSpec, kind, color, r, labelOpacity: label?.material.opacity ?? 0 });
       live.current.dirty = true;
       return group;
     },
-    [baseColor, material, dark, degree],
+    [baseColor, material, dark, degree, fixed, tier],
   );
 
   // ── emphasis: highlight (path / answer / thread / stem) > hover neighbourhood > selection neighbourhood ──
@@ -444,11 +488,15 @@ export default function CosmicGraph3D() {
   // ── per-frame: reconcile visual state, then label level-of-detail (chapters always, others by proximity/focus) ──
   useEffect(() => {
     let raf = 0;
+    let running = false;
     const p = new THREE.Vector3();
     const tick = () => {
-      raf = requestAnimationFrame(tick);
       const fg = fgRef.current;
-      if (!fg) return;
+      if (!fg) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      let fading = false;
       if (live.current.dirty) {
         live.current.dirty = false;
         reconcile();
@@ -464,7 +512,7 @@ export default function CosmicGraph3D() {
       const { emphasis: e, selectedId: sel, hoverId: hov } = live.current;
       const forceAll = !!e && e.nodes.size <= 60;
       for (const [id, v] of visuals.current) {
-        if (!v.label) continue;
+        if (!v.label && !v.labelSpec) continue;
         const on = !e || e.nodes.has(id);
         let target: number;
         if (id === sel || id === hov) target = 1;
@@ -476,14 +524,39 @@ export default function CosmicGraph3D() {
           target = 0.9 * (1 - smooth(320, 600, p.distanceTo(cam.position)));
         }
         if (v.labelOpacity === target) continue;
+        if (!v.label) {
+          if (target <= 0.02 || !v.labelSpec) continue;
+          v.label = makeLabel(v.labelSpec, fontFace.current);
+          v.group.add(v.label);
+        }
+        fading = true;
         v.labelOpacity += (target - v.labelOpacity) * 0.2;
         if (Math.abs(v.labelOpacity - target) < 0.004) v.labelOpacity = target;
         v.label.material.opacity = v.labelOpacity;
         v.label.visible = v.labelOpacity > 0.02;
       }
+      // Sleep when nothing moves: no rotation, no label fading, no flowing path particles, no recent input or change.
+      const rotating = !!(fg.controls() as { autoRotate?: boolean }).autoRotate;
+      const flowing = !!live.current.emphasis?.path;
+      if (!rotating && !fading && !flowing && performance.now() > awakeUntil.current) {
+        running = false;
+        sleeping.current = true;
+        fg.pauseAnimation();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
     };
-    tick();
-    return () => cancelAnimationFrame(raf);
+    startLoop.current = () => {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(tick);
+    };
+    startLoop.current();
+    return () => {
+      cancelAnimationFrame(raf);
+      running = false;
+      startLoop.current = null;
+    };
   }, [reconcile]);
 
   // ── links ──
@@ -512,6 +585,135 @@ export default function CosmicGraph3D() {
   const linkWidth = useCallback((l: GLink) => (emphasis?.path && emphasis.edges.has(l.key) ? 0.9 : 0), [emphasis]);
   const linkParticles = useCallback((l: GLink) => (emphasis?.path && emphasis.edges.has(l.key) && !reduceMotion ? 2 : 0), [emphasis, reduceMotion]);
 
+  // With a fixed layout the force-graph only draws highlighted path links (thick, with flowing particles); all other
+  // links are batched below. Its links point at node objects directly, since no link force resolves ids.
+  const fgData = useMemo(() => {
+    if (!fixed) return data;
+    const path = emphasis?.path ? data.links.filter((l) => emphasis.edges.has(l.key)) : [];
+    return { nodes: data.nodes, links: path.map((l) => ({ ...l, source: nodeCache.current.get(String(l.source)) ?? l.source, target: nodeCache.current.get(String(l.target)) ?? l.target })) };
+  }, [fixed, data, emphasis]);
+
+  // ── links, batched: one draw call per visual class instead of one per link (5,350 → ≤ 8) ──
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || !fixed || !data.links.length) return;
+    const idOf = (x: GLink["source"]) => (typeof x === "object" && x ? String((x as GNode).id) : String(x));
+    const posOf = (id: string) => nodeCache.current.get(id);
+    const positions = new Float32Array(data.links.length * 6);
+    const classes = new Map<string, number[]>();
+    const cls = (l: GLink) => (emphasis ? (emphasis.edges.has(l.key) ? (emphasis.kind === "highlight" ? "hi" : "focus") : "dim") : l.group === "personal" ? (l.suggested ? "suggested" : "personal") : l.group);
+    data.links.forEach((l, i) => {
+      const s = posOf(idOf(l.source));
+      const t = posOf(idOf(l.target));
+      if (!s || !t) return;
+      positions.set([s.fx ?? s.x ?? 0, s.fy ?? s.y ?? 0, s.fz ?? s.z ?? 0, t.fx ?? t.x ?? 0, t.fy ?? t.y ?? 0, t.fz ?? t.z ?? 0], i * 6);
+      const c = cls(l);
+      const list = classes.get(c) ?? [];
+      list.push(i * 2, i * 2 + 1);
+      classes.set(c, list);
+    });
+    const style: Record<string, [string, number]> = {
+      structure: [ink, dark ? 0.028 : 0.03],
+      lexical: [ink, dark ? 0.032 : 0.034],
+      curated: [ink, 0.085],
+      personal: [ink, 0.55],
+      suggested: [ink, 0.14],
+      hi: [accent, 0.85],
+      focus: [ink, dark ? 0.36 : 0.45],
+      dim: [ink, dark ? 0.014 : 0.02],
+    };
+    const attr = new THREE.BufferAttribute(positions, 3);
+    const group = new THREE.Group();
+    group.name = "gv-links";
+    for (const [c, idx] of classes) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", attr);
+      geo.setIndex(idx);
+      const [rgb, opacity] = style[c] ?? style.curated;
+      const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: new THREE.Color(`rgb(${rgb})`), transparent: true, opacity, depthWrite: false }));
+      line.frustumCulled = false;
+      line.raycast = () => {};
+      line.renderOrder = c === "hi" || c === "focus" ? 2 : 0;
+      group.add(line);
+    }
+    const scene = fg.scene();
+    scene.add(group);
+    return () => {
+      scene.remove(group);
+      for (const o of group.children as THREE.LineSegments[]) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    };
+  }, [fixed, data, emphasis, ink, accent, dark]);
+
+  // ── verses, instanced: one draw call for every verse in view (two while some are dimmed) instead of 701 ──
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || !fixed) return;
+    const verses = data.nodes.filter((n) => n.type === "Verse");
+    if (!verses.length) return;
+    const solid: GNode[] = [];
+    const dim: GNode[] = [];
+    for (const n of verses) (!emphasis || emphasis.nodes.has(String(n.id)) ? solid : dim).push(n);
+    const glow = new THREE.Color(NODE_HEX[dark ? "dark" : "light"].verse).multiplyScalar(dark ? 0.14 : 0.02);
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const c = new THREE.Color();
+    const batch = (list: GNode[], dimmed: boolean) => {
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0.05, emissive: dimmed ? 0x000000 : glow, transparent: dimmed, opacity: dimmed ? (dark ? 0.12 : 0.16) : 1, depthWrite: !dimmed });
+      const im = new THREE.InstancedMesh(sphere("lo", tier === "low"), mat, list.length);
+      list.forEach((n, i) => {
+        const id = String(n.id);
+        const r = visuals.current.get(id)?.r ?? radiusOf(n.data, degree.of.get(id) ?? 0, degree.max);
+        im.setMatrixAt(i, m4.compose(p.set(n.fx ?? n.x ?? 0, n.fy ?? n.y ?? 0, n.fz ?? n.z ?? 0), q, s.setScalar(r)));
+        c.set(baseColor(n));
+        if (!dimmed && emphasis && (id === selectedId || id === hoverId || emphasis.kind === "highlight")) c.multiplyScalar(dark ? 1.35 : 0.85);
+        im.setColorAt(i, c);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.frustumCulled = false;
+      im.raycast = () => {};
+      return im;
+    };
+    const group = new THREE.Group();
+    group.name = "gv-verses";
+    if (solid.length) group.add(batch(solid, false));
+    if (dim.length) group.add(batch(dim, true));
+    const scene = fg.scene();
+    scene.add(group);
+    return () => {
+      scene.remove(group);
+      for (const o of group.children as THREE.InstancedMesh[]) {
+        (o.material as THREE.Material).dispose();
+        o.dispose();
+      }
+    };
+  }, [fixed, data, emphasis, baseColor, dark, degree, selectedId, hoverId, tier]);
+
+  // ── render only while something changes: an idle frame costs nothing (cooler laptops, longer battery) ──
+  const awakeUntil = useRef(0);
+  const sleeping = useRef(false);
+  const startLoop = useRef<(() => void) | null>(null);
+  const wake = useCallback((ms = 1200) => {
+    awakeUntil.current = Math.max(awakeUntil.current, performance.now() + ms);
+    if (sleeping.current && !document.hidden) {
+      sleeping.current = false;
+      fgRef.current?.resumeAnimation();
+      startLoop.current?.();
+    }
+  }, []);
+  useEffect(() => {
+    wake(1500);
+  }, [fgData, emphasis, selectedId, hoverId, audioVerse, dark, colorBy, size, autoRotate, wake]);
+  useEffect(() => {
+    // Development-only handles for performance checks (renderer stats, current data).
+    if (process.env.NODE_ENV !== "production") Object.assign(window, { __gvGraph: fgRef.current, __gvGraphData: fgData });
+  });
+
   // ── camera ──
   useEffect(() => {
     const fg = fgRef.current;
@@ -527,6 +729,9 @@ export default function CosmicGraph3D() {
     controls.screenSpacePanning = true;
     controls.rotateSpeed = 0.7;
     controls.addEventListener?.("start", () => useGita.getState().autoRotate && useGita.getState().setAutoRotate(false));
+    // Damping keeps the camera gliding after a drag; stay awake while it does.
+    controls.addEventListener?.("change", () => wake(700));
+    wake(1500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -551,10 +756,15 @@ export default function CosmicGraph3D() {
 
   // Pause rendering when the tab is hidden.
   useEffect(() => {
-    const onVis = () => (document.hidden ? fgRef.current?.pauseAnimation() : fgRef.current?.resumeAnimation());
+    const onVis = () => {
+      if (document.hidden) {
+        fgRef.current?.pauseAnimation();
+        sleeping.current = true;
+      } else wake(1200);
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
+  }, [wake]);
 
   // Camera flights wait for the layout to settle; flying to a node mid-simulation lands inside the cloud.
   const settled = useRef(false);
@@ -567,12 +777,13 @@ export default function CosmicGraph3D() {
     const n = nodeCache.current.get(id);
     if (!fg || !n || n.x === undefined) return;
     useGita.getState().setAutoRotate(false);
+    wake(reduceMotion ? 400 : 1600);
     const { x = 0, y = 0, z = 0 } = n;
     const dist = n.type === "Verse" ? 170 : n.type === "Chapter" ? 230 : 200;
     const len = Math.hypot(x, y, z);
     const pos = len < 1 ? { x: 0, y: dist * 0.45, z: dist } : { x: x * (1 + dist / len), y: y * (1 + dist / len) + dist * 0.4, z: z * (1 + dist / len) };
     fg.cameraPosition(pos, { x, y, z }, reduceMotion ? 0 : 1100);
-  }, [reduceMotion]);
+  }, [reduceMotion, wake]);
   useEffect(() => {
     if (!flyTo) return;
     if (settled.current) flyToNode(flyTo.id);
@@ -590,15 +801,17 @@ export default function CosmicGraph3D() {
     const fg = fgRef.current;
     if (!fg || !highlight?.order?.length || highlight.source !== "path") return;
     const ids = new Set(highlight.order);
+    wake(1800);
     const t = setTimeout(() => fg.zoomToFit(reduceMotion ? 0 : 1200, 90, (n) => ids.has(String(n.id))), 120);
     return () => clearTimeout(t);
-  }, [highlight, reduceMotion]);
+  }, [highlight, reduceMotion, wake]);
 
   // Toolbar camera commands (zoom, fit, home).
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || !cameraCmd) return;
     const ms = reduceMotion ? 0 : 600;
+    wake(ms + 500);
     const controls = fg.controls() as { target?: THREE.Vector3 };
     const target = controls.target ?? new THREE.Vector3();
     const cam = fg.camera().position;
@@ -660,12 +873,21 @@ export default function CosmicGraph3D() {
   }, []);
 
   return (
-    <div ref={wrapRef} className="absolute inset-0" aria-label="3D knowledge graph. Use search or the legend to find nodes." role="img">
+    <div
+      ref={wrapRef}
+      className="absolute inset-0"
+      aria-label="3D knowledge graph. Use search or the legend to find nodes."
+      role="img"
+      onPointerDown={() => wake(1500)}
+      onPointerMove={() => wake(900)}
+      onWheel={() => wake(1200)}
+      onTouchStart={() => wake(1500)}
+    >
       <ForceGraph3D<NodeT, LinkT>
         ref={fgRef}
         width={size.w}
         height={size.h}
-        graphData={data}
+        graphData={fgData}
         controlType="orbit"
         backgroundColor={dark ? "#0d0c0b" : "#f5f4f1"}
         showNavInfo={false}
@@ -684,11 +906,11 @@ export default function CosmicGraph3D() {
         onBackgroundClick={onBackgroundClick}
         onEngineStop={onEngineStop}
         enableNodeDrag={false}
-        warmupTicks={90}
-        cooldownTicks={260}
+        warmupTicks={fixed ? 0 : 90}
+        cooldownTicks={fixed ? 0 : 260}
         d3AlphaDecay={0.022}
         d3VelocityDecay={0.33}
-        rendererConfig={{ antialias: true, powerPreference: "high-performance", alpha: false }}
+        rendererConfig={rendererConfig}
       />
     </div>
   );

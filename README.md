@@ -47,7 +47,7 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 
 ```bash
 npm install          # Node ≥ 20 (developed on Node 26)
-npm run data         # download open data → compile & verify the graph (resumable, cached in .cache/)
+npm run data         # download open data → compile & verify the graph, then precompute the 3D layout
 npm run dev          # http://localhost:3000
 npm test             # behavioural checks for saving, migration, search and Ask rules
 ```
