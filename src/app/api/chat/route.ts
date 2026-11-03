@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isProviderId, PROVIDERS } from "@/lib/llm/providers";
 import { openStream, ProviderError, resolveProvider, type ChatMessage } from "@/lib/llm/client";
-import { ANALYZE_SYSTEM, BRIDGE_SYSTEM, PARTHA_SARATHI_SYSTEM, TRANSLATE_SYSTEM, buildUserTurn } from "@/lib/graphrag/prompts";
+import { ANALYZE_SYSTEM, BRIDGE_SYSTEM, COMMENTARY_SYSTEM, PARTHA_SARATHI_SYSTEM, TRANSLATE_SYSTEM, buildUserTurn } from "@/lib/graphrag/prompts";
 import { getServerRag } from "@/lib/server/data";
 import { retrieve } from "@/lib/graphrag/engine";
 import { isLocalRequest } from "@/lib/server/guard";
@@ -10,8 +10,8 @@ import { embedQueryServer } from "@/lib/server/embedder";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Mode = "chat" | "bridge" | "translate" | "analyze";
-const SYSTEM: Record<Mode, string> = { chat: PARTHA_SARATHI_SYSTEM, bridge: BRIDGE_SYSTEM, translate: TRANSLATE_SYSTEM, analyze: ANALYZE_SYSTEM };
+type Mode = "chat" | "bridge" | "translate" | "analyze" | "commentary";
+const SYSTEM: Record<Mode, string> = { chat: PARTHA_SARATHI_SYSTEM, bridge: BRIDGE_SYSTEM, translate: TRANSLATE_SYSTEM, analyze: ANALYZE_SYSTEM, commentary: COMMENTARY_SYSTEM };
 
 interface Body {
   mode?: Mode;
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   // openStream also swaps in an available model if the configured one has been retired by the provider.
   let opened: Awaited<ReturnType<typeof openStream>>;
   try {
-    opened = await openStream(provider, messages, { temperature: mode === "analyze" || mode === "translate" ? 0.2 : 0.55, signal: req.signal });
+    opened = await openStream(provider, messages, { temperature: mode === "analyze" || mode === "translate" || mode === "commentary" ? 0.2 : 0.55, signal: req.signal });
   } catch (e) {
     const err = e as ProviderError;
     return NextResponse.json({ error: err.message, code: err.code || "upstream" }, { status: err.status && err.status < 600 ? err.status : 502 });

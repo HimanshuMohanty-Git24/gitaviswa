@@ -5,16 +5,16 @@ import { useGita, type ScriptChoice } from "@/lib/store/useGitaStore";
 import { audio, useAudio } from "@/lib/store/audioStore";
 import { useDraft } from "@/lib/store/draftStore";
 import { useConnection } from "@/lib/store/settingsStore";
-import { loadCommentary } from "@/lib/data/loader";
 import { neighbors } from "@/lib/graph/graphStore";
 import { RELATIONS } from "@/lib/graph/relations";
 import { SCRIPT_INFO, TRANSLATION_LANGS, isRegionalScript, transliterate, type RegionalScript } from "@/lib/indic/scripts";
 import { cacheTranslation, getCachedTranslation } from "@/lib/store/personalStore";
 import { streamFromApi } from "@/lib/llm/browser";
-import type { CommentaryDoc, Verse } from "@/lib/types";
+import type { Verse } from "@/lib/types";
 import { askPartha } from "@/components/chat/GraphRagChatbot";
 import { NodeGlyph, Notice, SectionLabel } from "@/components/ui/primitives";
 import { PadacchedaLexicon } from "./PadacchedaLexicon";
+import { Perspectives } from "./Perspectives";
 
 const SPEAKER: Record<string, string> = { krishna: "Kṛṣṇa", arjuna: "Arjuna", sanjaya: "Sañjaya", dhritarashtra: "Dhṛtarāṣṭra", duryodhana: "Duryodhana" };
 const LISTENER: Record<string, string> = { krishna: "Arjuna", arjuna: "Kṛṣṇa", sanjaya: "Dhṛtarāṣṭra", dhritarashtra: "Sañjaya", duryodhana: "Droṇa" };
@@ -191,63 +191,6 @@ function Translation({ verse }: { verse: Verse }) {
   );
 }
 
-function Commentary({ verse }: { verse: Verse }) {
-  const [doc, setDoc] = useState<CommentaryDoc | null | undefined>(undefined);
-  const [author, setAuthor] = useState<number | null>(null);
-  useEffect(() => {
-    let live = true;
-    setDoc(undefined);
-    loadCommentary(verse.id).then((d) => {
-      if (!live) return;
-      setDoc(d);
-      setAuthor(d?.commentaries.find((c) => c.lang === "en")?.authorId ?? d?.commentaries[0]?.authorId ?? null);
-    });
-    return () => {
-      live = false;
-    };
-  }, [verse.id]);
-  if (doc === undefined)
-    return (
-      <div className="space-y-2" aria-busy="true" aria-label="Loading commentaries">
-        <div className="skeleton h-8 w-full" />
-        <div className="skeleton h-4 w-3/4" />
-        <div className="skeleton h-4 w-full" />
-        <div className="skeleton h-4 w-5/6" />
-      </div>
-    );
-  if (!doc || !doc.commentaries.length)
-    return (
-      <p className="text-[13px] leading-5 text-text-3">
-        Commentary for this verse isn&apos;t available right now. If you are offline, it appears once the verse has been opened with a connection.
-        {process.env.NODE_ENV !== "production" && " (Developer: run npm run data to bundle commentaries.)"}
-      </p>
-    );
-  const c = doc.commentaries.find((x) => x.authorId === author) || doc.commentaries[0];
-  const name = (s?: string) => s?.replace(/^(Sri|Swami|Shri|Dr\.) /, "") || "Commentary";
-  return (
-    <div>
-      <label className="block">
-        <span className="label mb-1 block">{doc.commentaries.length} commentaries</span>
-        <select className="field field-sm" value={c?.authorId} onChange={(e) => setAuthor(Number(e.target.value))}>
-          {doc.commentaries.map((x) => (
-            <option key={x.authorId} value={x.authorId}>
-              {name(x.author)}
-              {x.school ? `, ${x.school}` : ""} ({x.lang === "en" ? "English" : x.lang === "hi" ? "Hindi" : "Sanskrit"})
-            </option>
-          ))}
-        </select>
-      </label>
-      {c && (
-        <article className="mt-4">
-          <div className="text-[14px] font-semibold text-text">{c.author}</div>
-          {c.school && <div className="text-[12.5px] text-text-3">{c.school}</div>}
-          <p className={`mt-2 whitespace-pre-line ${c.lang === "en" ? "reading" : "deva text-[16px] text-text-2"}`}>{c.text}</p>
-        </article>
-      )}
-    </div>
-  );
-}
-
 function Connections({ verse }: { verse: Verse }) {
   const graphs = useGita((s) => s.graphs);
   const select = useGita((s) => s.select);
@@ -417,7 +360,7 @@ export function VerseExplorer({ verseId, onClose }: { verseId: string; onClose: 
             {(
               [
                 ["meaning", "Meaning"],
-                ["commentary", "Commentary"],
+                ["commentary", "Commentaries"],
                 ["connections", `Connections${connCount ? ` ${connCount}` : ""}`],
               ] as const
             ).map(([id, label]) => (
@@ -438,7 +381,7 @@ export function VerseExplorer({ verseId, onClose }: { verseId: string; onClose: 
               </section>
             </div>
           )}
-          {tab === "commentary" && <Commentary verse={verse} />}
+          {tab === "commentary" && <Perspectives verse={verse} />}
           {tab === "connections" && <Connections verse={verse} />}
         </div>
       </div>

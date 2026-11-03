@@ -15,7 +15,7 @@ export interface StreamResult {
 
 /** Stream a completion through /api/chat with the user's active provider (BYOK key sent per request, never stored server-side unless saved). */
 export async function streamFromApi(opts: {
-  mode: "chat" | "bridge" | "translate" | "analyze";
+  mode: "chat" | "bridge" | "translate" | "analyze" | "commentary";
   question: string;
   context?: string;
   history?: { role: "user" | "assistant"; content: string }[];

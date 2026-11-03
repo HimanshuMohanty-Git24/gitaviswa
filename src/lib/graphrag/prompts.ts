@@ -26,6 +26,14 @@ Given the hop-by-hop path, write 120–200 words describing the philosophical br
 
 export const TRANSLATE_SYSTEM = `You are a careful translator of the Bhagavad Gita. Translate the meaning of the given verse faithfully into the requested language, using that language's native script. Keep it to the verse's meaning (no commentary), 1–3 sentences. Output only the translation.`;
 
+export const COMMENTARY_SYSTEM = `You translate classical Sanskrit commentaries on the Bhagavad Gita for readers who do not know Sanskrit. Translate the given commentary faithfully into the requested language, in that language's native script.
+Rules:
+- Follow the commentator's own argument and order. Do not add your own interpretation, and do not bring in the views of other schools.
+- Keep technical terms in IAST with a short gloss in brackets the first time, e.g. niṣkāma karma (action without desire for its fruit).
+- Where the commentator quotes scripture, translate the quotation and keep its source if given.
+- If a passage is unclear or the text looks corrupted, say so briefly in brackets rather than guessing.
+- Output only the translation, in plain paragraphs.`;
+
 export const ANALYZE_SYSTEM = `You are a careful reading companion. A person has written a private note: it may be a feeling, a question, an idea, gratitude or an observation. Suggest where it might meet the Bhagavad Gita. The person decides what fits.
 Return ONLY a JSON object, no prose, of the form:
 {"themes":[{"id":"emotion:<id>|dilemma:<id>|concept:<id>","why":"<= 14 words"}],"verses":[{"id":"BG_<c>.<v>","why":"<= 14 words"}],"reflection":"<= 90 words, citing verses like [BG 2.47]"}

@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AudioLines, LoaderCircle, Pause, Play, RotateCcw, SkipBack, SkipForward, SlidersHorizontal, X } from "lucide-react";
-import { audio, useAudio } from "@/lib/store/audioStore";
+import { audio, setCommentaryAfter, useAudio } from "@/lib/store/audioStore";
 import { useGita } from "@/lib/store/useGitaStore";
+import { LANG_NAME, SPOKEN_COMMENTARIES, spokenLabel } from "@/lib/commentary/traditions";
 
 const fmt = (s: number) => (isFinite(s) && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00");
 
@@ -29,7 +30,8 @@ export function AudioDock() {
   const select = useGita((s) => s.select);
   const v = a.verseId ? useGita.getState().versesById.get(a.verseId) : null;
   const ch = versesDoc?.chapters.find((c) => c.number === (v?.chapter ?? a.chapter));
-  const frac = a.duration ? Math.min(1, a.currentTime / a.duration) : 0;
+  const reading = a.source === "commentary" ? a.reading : null;
+  const frac = reading ? (reading.part + 1) / reading.parts : a.duration ? Math.min(1, a.currentTime / a.duration) : 0;
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const active = !!(a.verseId || a.chapter);
@@ -41,8 +43,9 @@ export function AudioDock() {
     return () => window.removeEventListener("mousedown", close);
   }, [menu]);
 
-  const title = a.mode === "chapter" && ch ? `Chapter ${ch.number} · ${ch.title}` : v ? `BG ${v.ref}` : "Recitation";
-  const sub = a.error ? a.error : a.mode === "chapter" && v ? `Now at BG ${v.ref}${a.approx ? " (approximate)" : ""}` : v ? v.sanskrit[0] : "";
+  const title = reading && v ? `${reading.name} on BG ${v.ref}` : a.mode === "chapter" && ch ? `Chapter ${ch.number} · ${ch.title}` : v ? `BG ${v.ref}` : "Recitation";
+  const sub = a.error ? a.error : reading ? `Commentary in ${LANG_NAME[reading.lang]}, read by this device` : a.source === "commentary" && a.loading ? "Preparing the commentary" : a.mode === "chapter" && v ? `Now at BG ${v.ref}${a.approx ? " (approximate)" : ""}` : v ? v.sanskrit[0] : "";
+  const devaSub = !a.error && !reading && a.source !== "commentary" && a.mode !== "chapter";
 
   return (
     <AnimatePresence initial={false}>
@@ -101,12 +104,10 @@ export function AudioDock() {
                 {a.playing && <AudioLines size={13} className="shrink-0 text-accent-text" />}
                 <span className="truncate text-[13px] font-medium text-text">{title}</span>
               </div>
-              <div className={`truncate text-[12px] ${a.error ? "text-danger" : "text-text-3"} ${!a.error && a.mode !== "chapter" ? "deva !leading-5" : ""}`}>{sub}</div>
+              <div className={`truncate text-[12px] ${a.error ? "text-danger" : "text-text-3"} ${devaSub ? "deva !leading-5" : ""}`}>{sub}</div>
             </button>
 
-            <span className="num hidden text-[12px] text-text-3 md:inline">
-              {fmt(a.currentTime)} / {fmt(a.duration)}
-            </span>
+            <span className="num hidden text-[12px] text-text-3 md:inline">{reading ? `Part ${reading.part + 1} of ${reading.parts}` : `${fmt(a.currentTime)} / ${fmt(a.duration)}`}</span>
             <div ref={menuRef} className="relative">
               <button className="btn btn-ghost btn-icon" aria-expanded={menu} aria-label="Playback options" onClick={() => setMenu(!menu)}>
                 <SlidersHorizontal size={15} />
@@ -133,6 +134,18 @@ export function AudioDock() {
                     </div>
                     <Toggle on={a.autoAdvance} onChange={(autoAdvance) => useAudio.setState({ autoAdvance })} label="Continue automatically" hint="Play the next verse or chapter when one ends" />
                     <Toggle on={a.follow} onChange={(follow) => useAudio.setState({ follow })} label="Follow along" hint="Move the graph camera and reader to the verse being recited" />
+                    <label className="mt-2 block border-t border-line pt-2.5">
+                      <span className="block text-[13px] text-text">After each verse, read a commentary</span>
+                      <span className="block text-[12px] leading-4 text-text-3">Read aloud by this device&apos;s voice, then on to the next verse. One verse at a time only.</span>
+                      <select className="field field-sm mt-1.5" value={a.commentaryAfter ?? ""} onChange={(e) => setCommentaryAfter(Number(e.target.value) || null)}>
+                        <option value="">No, just the verses</option>
+                        {SPOKEN_COMMENTARIES.map((c) => (
+                          <option key={c.authorId} value={c.authorId}>
+                            {spokenLabel(c.authorId)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     {a.sourceLabel && <div className="mt-2 border-t border-line pt-2 text-[11.5px] text-text-3">Source: {a.sourceLabel}</div>}
                   </motion.div>
                 )}

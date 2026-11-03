@@ -93,9 +93,21 @@ export interface VersesDoc {
   verses: Verse[];
 }
 
+export interface CommentaryEntry {
+  authorId: number; author: string; school?: string; lang: "en" | "hi" | "sa"; text: string;
+  /** Present when the text is a translation of the original commentary. */
+  translator?: string; work?: string;
+  /** Dataset the text came from, when not gita/gita. */
+  source?: string;
+  /** The commentator did not comment on this verse (the text is the dataset's note saying so). */
+  none?: boolean;
+  /** The commentator treats this verse under another one, e.g. "BG_10.42". */
+  seeAlso?: string;
+}
+
 export interface CommentaryDoc {
   id: string; ref: string;
-  commentaries: { authorId: number; author: string; school?: string; lang: "en" | "hi" | "sa"; text: string }[];
+  commentaries: CommentaryEntry[];
 }
 
 /** How a thought relates to something. Chosen by the person; suggestions default to "relates_to". */
