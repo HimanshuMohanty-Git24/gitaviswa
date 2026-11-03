@@ -215,7 +215,13 @@ function Commentary({ verse }: { verse: Verse }) {
         <div className="skeleton h-4 w-5/6" />
       </div>
     );
-  if (!doc || !doc.commentaries.length) return <p className="text-[13px] text-text-3">No commentaries are bundled for this verse. Run `npm run data` to include them.</p>;
+  if (!doc || !doc.commentaries.length)
+    return (
+      <p className="text-[13px] leading-5 text-text-3">
+        Commentary for this verse isn&apos;t available right now. If you are offline, it appears once the verse has been opened with a connection.
+        {process.env.NODE_ENV !== "production" && " (Developer: run npm run data to bundle commentaries.)"}
+      </p>
+    );
   const c = doc.commentaries.find((x) => x.authorId === author) || doc.commentaries[0];
   const name = (s?: string) => s?.replace(/^(Sri|Swami|Shri|Dr\.) /, "") || "Commentary";
   return (

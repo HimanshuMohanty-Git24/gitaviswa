@@ -38,7 +38,7 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 | 2D | **Lineage** (*Darśana*) | A focused diagram for any node: what leads to it on the left (the question or dilemma that triggered a verse, its speaker, the preceding verse), the focus card in the centre, and what follows on the right (answers, echoes, culminations, states it heals, concepts it defines), grouped under relation headings. On narrow screens it becomes a vertical list. Includes a causal-chain mode (e.g. the 2.62-63 *ladder of fall*). |
 | Reader | **Read** (*Adhyayana*) | Chapter-by-chapter reading plus a verse panel: Devanagari / IAST / phonetic / seven regional scripts, five English and two Hindi translations, 16 commentaries across Advaita, Viśiṣṭādvaita, Dvaita, Śuddhādvaita and Kashmir Śaivism, guru–laghu scansion, and word-by-word padaccheda. Hovering a word lights up every verse that shares its stem. |
 | Companion | **Ask** (*Pārtha-Sārathi*) | Available from every view. Ask philosophy, comparisons, or what is on your heart. Retrieval runs in the browser in tens of milliseconds and the exact subgraph used for the answer is highlighted on the canvas. Citations such as `[BG 2.47]`, `[Concept: …]` and `[Emotion: …]` are clickable. |
-| Journal | **Reflect** (*Manas-Darpaṇa*) | Private reflections stored only in IndexedDB, mapped locally onto Emotion, LifeDilemma and Verse nodes. Entries become `PersonalThought` nodes in the cosmic graph, with patterns over time and JSON export/import. |
+| Journal | **Reflect** (*Manas-Darpaṇa*) | Keep any thought in your own words — saved on this device (IndexedDB), with drafts that survive view changes and reloads. Connections to verses, concepts, states or other thoughts are optional: suggestions explain themselves and only the ones you keep are saved (with status and provenance). Thoughts can be edited (earlier wording kept), answered later, searched, restored from Recently deleted, seen on a small personal map, and exported or imported. |
 | Player | **Listen** (*Śravaṇa*) | Recitation player that appears once you press Listen: per-verse chanting, whole-chapter recordings, auto-advance, speed control, Media Session support. The 3D camera and the reader glide along with the chant. |
 
 **Design system.** Tokens, type roles, the radius and z-index scales and component classes are documented at the top of `src/app/globals.css`; node-kind colours and shapes live in `src/lib/graph/palette.ts` (three categorical hues validated for colour-blind separation in both themes, with shape and size as secondary channels). The interface follows the system theme unless you pin one.
@@ -49,6 +49,7 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 npm install          # Node ≥ 20 (developed on Node 26)
 npm run data         # download open data → compile & verify the graph (resumable, cached in .cache/)
 npm run dev          # http://localhost:3000
+npm test             # behavioural checks for saving, migration, search and Ask rules
 ```
 
 Optional:
@@ -63,7 +64,7 @@ cp .env.example .env.local   # or use Settings (gear icon, top right) in the app
 
 ## Works with zero keys, fully offline
 
-With no API key and no network, everything except LLM-written prose still works: the 2D/3D graph, path finding, Louvain colouring, reader, all scripts, commentaries, search, the Reflect mapping, and Ask itself. Without a key it composes **deterministic answers from the retrieved subgraph**: the matched state or situation, the most relevant verses with the reason each was retrieved, any causal chain involved, and a contemplation. In production builds a service worker caches the app shell and data, and recitation falls back to the platform speech engine.
+With no API key, everything except LLM-written prose still works: the 2D/3D graph, path finding, Louvain colouring, reader, all scripts, commentaries, search, the Reflect mapping, and Ask itself. Without a key it composes **deterministic answers from the retrieved subgraph**: the matched state or situation, the most relevant verses with the reason each was retrieved, any causal chain involved, and a contemplation. In production builds a service worker caches the app shell and data once visited; commentaries and recordings that were never opened need a connection, and recitation falls back to the platform speech engine. Your saved thoughts never depend on the network.
 
 ## Architecture
 
@@ -107,7 +108,7 @@ flowchart LR
 | `SanskritConcept` | 67 | Dharma, Niṣkāma-karma, Ātman, Brahman, Māyā, Prakṛti/Puruṣa, the guṇas, Sthitaprajña, Samatva, Abhyāsa, Vairāgya, Śaraṇāgati… in eight categories |
 | `Emotion` | 33 | 22 afflictive (Viṣāda, Moha, Bhaya, Krodha, Kāma, Lobha, Ahaṅkāra…) and 11 healing (Śānti, Abhaya, Śraddhā, Karuṇā, Prasāda, Dhṛti…), each with a modern parallel and an everyday lexicon |
 | `LifeDilemma` | 22 | Duty vs. attachment, outcome anxiety, burnout, bereavement, imposter syndrome, toxic people, restless mind, leadership ethics, svadharma, addiction, guilt, loneliness… |
-| `PersonalThought` | yours | client-side only, linked by `FEELS`, `FACES` and `RESONATES_WITH` |
+| `PersonalThought` | yours | client-side only; connections as `CONNECTS_TO`, `ASKS_ABOUT`, `QUESTIONS`, `REMINDS_OF`, `RESPONDS_TO` (suggested ones drawn faint). Never used to rank public retrieval and never included in a model's context. |
 
 Relations (count): `MENTIONS_CONCEPT` 1221 · `BELONGS_TO` 701 · `SPOKE` 701 · `NEXT_VERSE` 700 · `MENTIONS_STATE` 403 · `DEFINES_CONCEPT` 359 · `MENTIONS_CHARACTER` 229 · `ANSWERS_QUESTION_IN` 197 · `ADDRESSES_DILEMMA` 150 · `HEALS` 115 · `DEPICTS_STATE` 92 · `CULTIVATES` 67 · `RESOLVED_THROUGH` 65 · `EXPOUNDS` 64 · `ECHOES_VERSE` 64 · `CULMINATES_IN` 63 · `EVOKES_STATE` 51 · `ANTIDOTE_TO` 44 · `CAUSES_STATE` 32 · `NEXT_CHAPTER` 17 · `NARRATED` 10 · `ADDRESSES` 5.
 
@@ -235,6 +236,9 @@ src/
 - Chapter-recording sync is estimated, and the two archive.org recordings differ in pacing.
 - 11.19 has no word-by-word glosses in the source.
 - Per-verse audio is streamed from a third-party site and needs network access (speech synthesis is the offline fallback).
+- Reflect suggestions use English lexicons; Hindi and Hinglish writing is saved normally but rarely receives suggestions yet.
+- The "Start here" lesson explanation and example are editorial drafts awaiting expert review.
+- Thoughts stay in one browser on one device; there is no sync (use Export / Import to move them).
 
 ## Credits and licences
 
