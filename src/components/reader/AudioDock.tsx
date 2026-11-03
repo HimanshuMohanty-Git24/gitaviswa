@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, LoaderCircle, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, X } from "lucide-react";
+import { AudioLines, LoaderCircle, Pause, Play, RotateCcw, SkipBack, SkipForward, SlidersHorizontal, X } from "lucide-react";
 import { audio, useAudio } from "@/lib/store/audioStore";
 import { useGita } from "@/lib/store/useGitaStore";
 
@@ -57,7 +57,7 @@ export function AudioDock() {
           aria-label="Recitation player"
         >
           <div
-            className="group absolute inset-x-0 -top-px h-1 cursor-pointer"
+            className="group absolute inset-x-0 -top-2 flex h-4 cursor-pointer items-center pointer-coarse:-top-3 pointer-coarse:h-6"
             role="slider"
             aria-label="Seek"
             aria-valuemin={0}
@@ -73,7 +73,7 @@ export function AudioDock() {
               audio.seek((e.clientX - r.left) / r.width);
             }}
           >
-            <div className="h-[2px] bg-line-2 transition-[height] group-hover:h-1">
+            <div className="h-[2px] w-full bg-line-2 transition-[height] group-hover:h-1 pointer-coarse:h-1">
               <div className="h-full bg-accent" style={{ width: `${frac * 100}%` }} />
             </div>
           </div>
@@ -82,7 +82,12 @@ export function AudioDock() {
             <button className="btn btn-primary btn-icon h-9 w-9 shrink-0 rounded-full" onClick={() => audio.toggle()} aria-label={a.playing ? "Pause" : "Play"}>
               {a.loading ? <LoaderCircle size={16} className="animate-spin" /> : a.playing ? <Pause size={16} /> : <Play size={16} className="translate-x-px" />}
             </button>
-            <div className="hidden items-center sm:flex">
+            <div className="flex items-center">
+              {a.mode !== "chapter" && v && (
+                <button className="btn btn-ghost btn-icon" onClick={() => audio.playVerse(v.id)} aria-label={`Replay BG ${v.ref}`} title="Replay this verse">
+                  <RotateCcw size={15} />
+                </button>
+              )}
               <button className="btn btn-ghost btn-icon" onClick={() => audio.prev()} aria-label={a.mode === "chapter" ? "Previous chapter" : "Previous verse"}>
                 <SkipBack size={15} />
               </button>

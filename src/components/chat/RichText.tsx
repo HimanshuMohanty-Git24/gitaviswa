@@ -2,9 +2,11 @@
 import { Fragment, type ReactNode } from "react";
 import { CITATION_RE } from "@/lib/graphrag/citations";
 import { CitationChip } from "./SubgraphCitationChips";
+import { readTable } from "./markdownTable";
 
 // Minimal, safe Markdown → React (no HTML injection). Supports ### headings, lists, > quotes, **bold**, *italic*,
-// `code`, <small>…</small>, and GraphRAG citations rendered as interactive chips.
+// `code`, <small>…</small>, simple tables (a real table when there is room, labelled rows on narrow screens), and
+// GraphRAG citations rendered as interactive chips.
 
 // Bracketed citations first; bare "BG 2.58" references (models don't always bracket them) are chips too.
 const INLINE = new RegExp(`(${CITATION_RE.source})|(\\bBG\\s?\\d{1,2}\\.\\d{1,2}(?:\\s?[-–]\\s?\\d{1,2})?\\b)|(\\*\\*[^*]+\\*\\*)|(\\*[^*\\n]+\\*)|(_[^_\\n]+_)|(\`[^\`]+\`)|(<small>[\\s\\S]*?</small>)`, "g");
@@ -52,8 +54,55 @@ export function RichText({ text }: { text: string }) {
     );
     list = null;
   };
-  for (const raw of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const line = raw.trimEnd();
+    const table = readTable(lines, i);
+    if (table) {
+      flushPara();
+      flushList();
+      const k = `t${blocks.length}`;
+      blocks.push(
+        <div key={k} className="@container my-3">
+          <table className="hidden w-full border-collapse text-[0.92em] @min-[30rem]:table">
+            <thead>
+              <tr>
+                {table.header.map((h, c) => (
+                  <th key={c} scope="col" className="border-b border-line-2 px-2 py-1.5 text-left align-bottom font-semibold text-text">
+                    {inline(h, `${k}-h${c}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((r, ri) => (
+                <tr key={ri} className="border-b border-line">
+                  {r.map((cell, c) => (
+                    <td key={c} className="px-2 py-1.5 align-top">
+                      {inline(cell, `${k}-${ri}-${c}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="space-y-2 @min-[30rem]:hidden">
+            {table.rows.map((r, ri) => (
+              <dl key={ri} className="rounded-2 border border-line px-3 py-2">
+                {r.map((cell, c) => (
+                  <div key={c} className="py-0.5">
+                    <dt className="text-[0.8em] font-medium text-text-3">{inline(table.header[c] || "", `${k}-s${ri}-${c}h`)}</dt>
+                    <dd className="[overflow-wrap:anywhere]">{inline(cell, `${k}-s${ri}-${c}`)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ))}
+          </div>
+        </div>,
+      );
+      i = table.next - 1;
+      continue;
+    }
     const h = line.match(/^#{1,4}\s+(.*)$/);
     const li = line.match(/^\s*[-*•]\s+(.*)$/);
     const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);

@@ -2,7 +2,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Background, BackgroundVariant, Controls, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, ArrowRight, BookOpen, Orbit, PanelRight, Play, Workflow, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, List, Orbit, PanelRight, Play, Workflow, X } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { audio } from "@/lib/store/audioStore";
 import { isSuggestedEdge, neighbors, type GitaGraphs, type Neighbor } from "@/lib/graph/graphStore";
@@ -38,7 +38,9 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 function itemFor(nb: Neighbor, role: Role, verb: string, versesById: Map<string, Verse>): LData {
   const n = nb.node;
   const why = typeof nb.props?.why === "string" ? nb.props.why : undefined;
-  const curated = RELATIONS[nb.type].group === "curated";
+  // Solid lines for curated links and for connections the person kept; dashed for everything unconfirmed.
+  const group = RELATIONS[nb.type].group;
+  const curated = group === "curated" || (group === "personal" && !isSuggestedEdge(nb.props));
   if (n.type === "Verse") return { role, nodeId: n.id, kind: "verse", title: `BG ${n.ref}`, sa: n.sa, subtitle: why || snippet(n.snippet), relation: verb, curated, verse: versesById.get(n.id), node: n };
   const sub = "en" in n ? n.en : n.type === "Chapter" ? n.title : n.type === "Character" ? n.role : n.type === "LifeDilemma" ? snippet(n.desc, 80) : undefined;
   return { role, nodeId: n.id, kind: "entity", title: n.type === "Chapter" ? `Chapter ${n.number}` : n.label, sa: "sa" in n ? n.sa : n.type === "Chapter" ? n.name : undefined, subtitle: why || sub, relation: verb, curated, node: n };
@@ -81,8 +83,9 @@ function buildLineage(g: GitaGraphs, focus: string, versesById: Map<string, Vers
       if (bySchool.size) out.push({ role: "down", kind: "school", title: `${bySchool.size} commentarial ${bySchool.size === 1 ? "tradition" : "traditions"}`, subtitle: [...bySchool.keys()].join(", "), relation: "is commented on in", curated: false });
     }
   } else {
-    const sub = "en" in n ? n.en : n.type === "Chapter" ? n.meaning : n.type === "Character" ? n.role : undefined;
-    out.push({ role: "core", nodeId: n.id, kind: "core-entity", title: n.type === "Chapter" ? n.title : n.label, sa: "sa" in n ? n.sa : n.type === "Chapter" ? n.name : undefined, subtitle: sub, node: n });
+    const sub = "en" in n ? n.en : n.type === "Chapter" ? n.meaning : n.type === "Character" ? n.role : n.type === "PersonalThought" ? n.text : undefined;
+    const title = n.type === "Chapter" ? n.title : n.type === "PersonalThought" ? "Your thought" : n.label;
+    out.push({ role: "core", nodeId: n.id, kind: "core-entity", title, sa: "sa" in n ? n.sa : n.type === "Chapter" ? n.name : undefined, subtitle: sub, node: n });
     const versesFirst = (a: Neighbor, b: Neighbor) => (b.node.type === "Verse" ? 1 : 0) - (a.node.type === "Verse" ? 1 : 0);
     switch (n.type) {
       case "Emotion":
@@ -322,7 +325,12 @@ const CoreNodeView = memo(function CoreNodeView({ data }: NodeProps<LNode>) {
       </div>
       <div className="mt-2 text-[22px] font-semibold leading-tight tracking-[-0.015em] text-text">{data.title}</div>
       {data.sa && <div className="deva mt-0.5 text-[17px] text-text-2">{data.sa}</div>}
-      {data.subtitle && <div className="serif mt-0.5 text-[14px] italic text-text-3">{data.subtitle}</div>}
+      {data.subtitle &&
+        (data.node?.type === "PersonalThought" ? (
+          <p className="serif mt-1.5 line-clamp-6 whitespace-pre-wrap text-[15px] leading-[1.55] text-text [overflow-wrap:anywhere]">{data.subtitle}</p>
+        ) : (
+          <div className="serif mt-0.5 text-[14px] italic text-text-3">{data.subtitle}</div>
+        ))}
     </div>
   );
 });
@@ -344,8 +352,18 @@ function useFocus() {
     // Keep the details panel in step when it is open.
     if (useGita.getState().selectedId) useGita.getState().select(id, { fly: false });
   };
+  // Opening a neighbour's details without moving the focus (a personal map keeps the thought in the middle).
+  const inspected = useRef<string | null>(null);
+  const inspect = (id: string) => {
+    inspected.current = id;
+    useGita.getState().select(id, { fly: false });
+  };
   // Selecting something elsewhere (search, citations, the details panel) refocuses the lineage.
   useEffect(() => {
+    if (selectedId && selectedId === inspected.current) {
+      inspected.current = null;
+      return;
+    }
     if (selectedId && selectedId !== focusRef.current) {
       setHistory((h) => [...h.slice(-30), focusRef.current]);
       useGita.setState({ lineageFocus: selectedId });
@@ -357,10 +375,10 @@ function useFocus() {
     setHistory((h) => h.slice(0, -1));
     go(prev, false);
   };
-  return { focus, go, back, canGoBack: history.length > 0 };
+  return { focus, go, inspect, back, canGoBack: history.length > 0 };
 }
 
-function Toolbar({ focusNode, chain, setChainId, chainId, canGoBack, back, go }: { focusNode?: GraphNode; chain: Chain | null | undefined; chainId: string | null; setChainId: (id: string | null) => void; canGoBack: boolean; back: () => void; go: (id: string) => void }) {
+function Toolbar({ focusNode, chain, setChainId, chainId, canGoBack, back, go, listView, setListView }: { focusNode?: GraphNode; chain: Chain | null | undefined; chainId: string | null; setChainId: (id: string | null) => void; canGoBack: boolean; back: () => void; go: (id: string) => void; listView: boolean | null; setListView: (on: boolean) => void }) {
   const graphData = useGita((s) => s.graphData);
   const [picking, setPicking] = useState(false);
   return (
@@ -371,7 +389,7 @@ function Toolbar({ focusNode, chain, setChainId, chainId, canGoBack, back, go }:
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {chain ? <Workflow size={15} className="shrink-0 text-accent-text" /> : focusNode && <NodeGlyph node={focusNode} />}
         <div className="min-w-0">
-          <div className="label">{chain ? "Causal chain" : "Lineage of"}</div>
+          <div className="label">{chain ? "Causal chain" : focusNode?.type === "PersonalThought" ? "Map of your thought" : "Lineage of"}</div>
           <div className="truncate text-[14px] font-semibold leading-5 text-text">{chain ? chain.title : focusNode ? (focusNode.type === "Verse" ? `BG ${focusNode.ref}` : focusNode.type === "Chapter" ? `Chapter ${focusNode.number}: ${focusNode.title}` : focusNode.label) : ""}</div>
         </div>
       </div>
@@ -398,6 +416,11 @@ function Toolbar({ focusNode, chain, setChainId, chainId, canGoBack, back, go }:
             </option>
           ))}
         </select>
+        {listView !== null && (
+          <button className="btn btn-icon hidden sm:inline-flex" aria-pressed={listView} onClick={() => setListView(!listView)} title={listView ? "Show as a diagram" : "Show as a list (keyboard and screen-reader friendly)"} aria-label="Show as a list">
+            <List size={15} />
+          </button>
+        )}
         {focusNode && !chain && (
           <button className="btn btn-icon hidden sm:inline-flex" onClick={() => (useGita.getState().setView("cosmos"), useGita.getState().fly(focusNode.id))} title="See in the 3D graph" aria-label="See in the 3D graph">
             <Orbit size={15} />
@@ -415,6 +438,7 @@ function Toolbar({ focusNode, chain, setChainId, chainId, canGoBack, back, go }:
 
 /** Narrow canvases: the same lineage as a vertical reading list, far easier to use than a pannable diagram. */
 function LineageList({ items, go }: { items: LData[]; go: (id: string) => void }) {
+  const alone = items.length <= 1;
   const groups = groupItems(items);
   const core = items.find((x) => x.role === "core");
   const enAuthor = useGita((s) => s.enAuthor);
@@ -480,9 +504,15 @@ function LineageList({ items, go }: { items: LData[]; go: (id: string) => void }
             ) : (
               <>
                 {core.sa && <div className="deva text-[16px] text-text-2">{core.sa}</div>}
-                {core.subtitle && <div className="serif text-[14px] italic text-text-3">{core.subtitle}</div>}
+                {core.subtitle &&
+                  (core.node?.type === "PersonalThought" ? (
+                    <p className="serif mt-1.5 whitespace-pre-wrap text-[15px] leading-[1.6] text-text [overflow-wrap:anywhere]">{core.subtitle}</p>
+                  ) : (
+                    <div className="serif text-[14px] italic text-text-3">{core.subtitle}</div>
+                  ))}
               </>
             )}
+            {alone && core.node?.type === "PersonalThought" && <p className="mt-3 border-t border-line pt-3 text-[13px] leading-5 text-text-3">It stands on its own, and that is complete. Open Details to add a connection whenever you want one.</p>}
           </div>
         )}
         {side("down", "What follows from it")}
@@ -527,7 +557,23 @@ function Flow() {
   const versesDoc = useGita((s) => s.versesDoc);
   const graphData = useGita((s) => s.graphData);
   const mobile = useIsMobile();
-  const { focus, go, back, canGoBack } = useFocus();
+  const { focus, go, inspect, back, canGoBack } = useFocus();
+  // A personal map keeps the thought in the middle: a neighbour opens beside it rather than taking its place.
+  const thoughtFocus = graphs?.nodeById.get(focus)?.type === "PersonalThought";
+  const open = (id: string) => (thoughtFocus ? inspect(id) : go(id));
+  const [preferList, setPreferList] = useState(() => {
+    try {
+      return localStorage.getItem("gitaviswa:lineage-list") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setListView = (on: boolean) => {
+    setPreferList(on);
+    try {
+      localStorage.setItem("gitaviswa:lineage-list", on ? "1" : "0");
+    } catch {}
+  };
   const [chainId, setChainId] = useState<string | null>(null);
   const { fitView, setViewport } = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -540,7 +586,8 @@ function Flow() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const list = mobile || narrow;
+  const forcedList = mobile || narrow;
+  const list = forcedList || preferList;
 
   const chain = chainId ? graphData?.chains.find((c) => c.id === chainId) : null;
   const items = useMemo(() => (graphs && versesDoc ? buildLineage(graphs, focus, versesById, versesDoc) : []), [graphs, versesDoc, versesById, focus]);
@@ -582,7 +629,7 @@ function Flow() {
 
   return (
     <div ref={outerRef} className="absolute inset-0 flex flex-col bg-bg">
-      <Toolbar focusNode={focusNode} chain={chain} chainId={chainId} setChainId={setChainId} canGoBack={canGoBack} back={back} go={go} />
+      <Toolbar focusNode={focusNode} chain={chain} chainId={chainId} setChainId={setChainId} canGoBack={canGoBack} back={back} go={go} listView={forcedList || chain ? null : preferList} setListView={setListView} />
       {list ? (
         <div className="min-h-0 flex-1">
           {chain ? (
@@ -594,7 +641,7 @@ function Flow() {
               }}
             />
           ) : (
-            <LineageList items={items} go={go} />
+            <LineageList items={items} go={open} />
           )}
         </div>
       ) : (
@@ -607,7 +654,7 @@ function Flow() {
               const d = n.data as LData;
               if (n.type === "core" || n.type === "heading" || !d.nodeId) return;
               setChainId(null);
-              go(d.nodeId);
+              open(d.nodeId);
             }}
             fitView
             minZoom={0.25}
@@ -627,10 +674,10 @@ function Flow() {
                 Read each heading from the centre: <span className="text-text-2">“{example}”</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-0 w-5 border-t-[1.5px] border-accent-line" /> curated
+                <span className="h-0 w-5 border-t-[1.5px] border-accent-line" /> {thoughtFocus ? "kept by you" : "curated"}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-0 w-5 border-t-[1.5px] border-dashed border-line-3" /> word match or sequence
+                <span className="h-0 w-5 border-t-[1.5px] border-dashed border-line-3" /> {thoughtFocus ? "suggested, not confirmed" : "word match or sequence"}
               </span>
             </div>
           )}
@@ -643,7 +690,7 @@ function Flow() {
           )}
           {empty && (
             <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
-              <div className="hud px-4 py-2 text-[13px] text-text-2">No curated connections for this yet. Try another focus.</div>
+              <div className="hud px-4 py-2 text-[13px] text-text-2">{thoughtFocus ? "This thought stands on its own, and that is complete. Open Details to add a connection." : "No curated connections for this yet. Try another focus."}</div>
             </div>
           )}
         </div>

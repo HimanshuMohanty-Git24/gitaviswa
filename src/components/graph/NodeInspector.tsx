@@ -126,8 +126,8 @@ export function NodeInspector({ nodeId, onClose }: { nodeId: string; onClose: ()
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           {view !== "darshana" && (
-            <button className="btn" onClick={() => useGita.getState().focusLineage(n.id)} title="What leads to this, and what follows from it">
-              <Waypoints size={14} /> Lineage
+            <button className="btn" onClick={() => useGita.getState().focusLineage(n.id)} title={n.type === "PersonalThought" ? "This thought and its connections, on a small map" : "What leads to this, and what follows from it"}>
+              <Waypoints size={14} /> {n.type === "PersonalThought" ? "My map" : "Lineage"}
             </button>
           )}
           <button className="btn" aria-pressed={hoodOn} onClick={lightAll} title="Light up everything connected to this node in the 3D graph">

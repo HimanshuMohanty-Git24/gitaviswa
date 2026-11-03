@@ -58,6 +58,8 @@ interface GitaState {
   selectedId: string | null;
   lineageFocus: string | null;
   readerChapter: number;
+  /** The short beginner lesson is open in the reader. */
+  lessonOpen: boolean;
   highlight: Highlight | null;
   hoverStem: string | null;
   layers: Record<NodeLabel, boolean>;
@@ -66,6 +68,8 @@ interface GitaState {
   chatOpen: boolean;
   paletteOpen: boolean;
   settingsOpen: boolean;
+  /** Section to show when settings open (e.g. "model" from a Connect button). */
+  settingsSection: string | null;
   script: ScriptChoice;
   translationLang: string;
   enAuthor: number;
@@ -86,6 +90,7 @@ interface GitaState {
   select: (id: string | null, opts?: { fly?: boolean }) => void;
   focusLineage: (id: string) => void;
   openChapter: (n: number) => void;
+  openLesson: (open: boolean) => void;
   setHighlight: (h: Highlight | null) => void;
   setHoverStem: (k: string | null) => void;
   toggleLayer: (l: NodeLabel) => void;
@@ -94,12 +99,33 @@ interface GitaState {
   setColorBy: (c: ColorBy) => void;
   setChatOpen: (o: boolean) => void;
   setPaletteOpen: (o: boolean) => void;
-  setSettingsOpen: (o: boolean) => void;
+  setSettingsOpen: (o: boolean, section?: string) => void;
   setScript: (s: ScriptChoice) => void;
   setTranslationLang: (l: string) => void;
   setAuthors: (en?: number, hi?: number) => void;
   fly: (id: string) => void;
 }
+
+const PREFS = "gitaviswa:prefs";
+/** Script, meaning language and translators are remembered between visits (validated against the loaded data). */
+function readingPrefs(doc: VersesDoc): Pick<GitaState, "enAuthor" | "hiAuthor"> & Partial<Pick<GitaState, "script" | "translationLang">> {
+  const out: ReturnType<typeof readingPrefs> = { enAuthor: doc.meta.defaults.en, hiAuthor: doc.meta.defaults.hi };
+  try {
+    const p = JSON.parse(localStorage.getItem(PREFS) || "{}") as Partial<Record<"script" | "translationLang", string> & Record<"enAuthor" | "hiAuthor", number>>;
+    const isAuthor = (id: unknown, lang: "en" | "hi") => typeof id === "number" && doc.authors.some((a) => a.id === id && a.lang === lang);
+    if (isAuthor(p.enAuthor, "en")) out.enAuthor = p.enAuthor!;
+    if (isAuthor(p.hiAuthor, "hi")) out.hiAuthor = p.hiAuthor!;
+    if (typeof p.script === "string" && SCRIPTS.includes(p.script as ScriptChoice)) out.script = p.script as ScriptChoice;
+    if (typeof p.translationLang === "string" && p.translationLang.length <= 8) out.translationLang = p.translationLang;
+  } catch {}
+  return out;
+}
+function savePrefs(s: Pick<GitaState, "script" | "translationLang" | "enAuthor" | "hiAuthor">) {
+  try {
+    localStorage.setItem(PREFS, JSON.stringify({ script: s.script, translationLang: s.translationLang, enAuthor: s.enAuthor, hiAuthor: s.hiAuthor }));
+  } catch {}
+}
+const SCRIPTS: ScriptChoice[] = ["deva", "iast", "phonetic", "odia", "bengali", "gujarati", "tamil", "telugu", "kannada", "malayalam"];
 
 export const useGita = create<GitaState>((set, get) => ({
   status: "idle",
@@ -126,6 +152,7 @@ export const useGita = create<GitaState>((set, get) => ({
   selectedId: null,
   lineageFocus: "BG_2.47",
   readerChapter: 2,
+  lessonOpen: false,
   highlight: null,
   hoverStem: null,
   layers: { Chapter: true, Verse: true, SanskritConcept: true, Emotion: true, Character: true, LifeDilemma: true, PersonalThought: true },
@@ -134,6 +161,7 @@ export const useGita = create<GitaState>((set, get) => ({
   chatOpen: false,
   paletteOpen: false,
   settingsOpen: false,
+  settingsSection: null,
   script: "deva",
   translationLang: "en",
   enAuthor: 16,
@@ -157,8 +185,7 @@ export const useGita = create<GitaState>((set, get) => ({
         graphs,
         ...mine,
         versesById: new Map(versesDoc.verses.map((v) => [v.id, v])),
-        enAuthor: versesDoc.meta.defaults.en,
-        hiAuthor: versesDoc.meta.defaults.hi,
+        ...readingPrefs(versesDoc),
         status: "ready",
         graphVersion: 1,
       });
@@ -219,7 +246,8 @@ export const useGita = create<GitaState>((set, get) => ({
     }
   },
   focusLineage: (id) => set({ lineageFocus: id, view: "darshana" }),
-  openChapter: (n) => set({ readerChapter: n, view: "adhyayana" }),
+  openChapter: (n) => set({ readerChapter: n, view: "adhyayana", lessonOpen: false }),
+  openLesson: (lessonOpen) => set(lessonOpen ? { lessonOpen, view: "adhyayana" } : { lessonOpen }),
   setHighlight: (highlight) => set({ highlight }),
   setHoverStem: (hoverStem) => set({ hoverStem }),
   toggleLayer: (l) => set({ layers: { ...get().layers, [l]: !get().layers[l] } }),
@@ -228,10 +256,10 @@ export const useGita = create<GitaState>((set, get) => ({
   setColorBy: (colorBy) => set({ colorBy }),
   setChatOpen: (chatOpen) => set(chatOpen ? { chatOpen, dockTab: "ask" } : { chatOpen, dockTab: "details" }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
-  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
-  setScript: (script) => set({ script }),
-  setTranslationLang: (translationLang) => set({ translationLang }),
-  setAuthors: (en, hi) => set({ ...(en ? { enAuthor: en } : {}), ...(hi ? { hiAuthor: hi } : {}) }),
+  setSettingsOpen: (settingsOpen, section) => set({ settingsOpen, settingsSection: section ?? null }),
+  setScript: (script) => (set({ script }), savePrefs(get())),
+  setTranslationLang: (translationLang) => (set({ translationLang }), savePrefs(get())),
+  setAuthors: (en, hi) => (set({ ...(en ? { enAuthor: en } : {}), ...(hi ? { hiAuthor: hi } : {}) }), savePrefs(get())),
   fly: (id) => set({ flyTo: { id, nonce: Date.now() } }),
   setTheme: (theme) => set({ theme }),
   setDockTab: (dockTab) => set({ dockTab }),

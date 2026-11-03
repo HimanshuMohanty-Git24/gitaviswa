@@ -479,14 +479,16 @@ svg.lucide {
   }
   .seg > button[aria-pressed="true"],
   .seg > button[aria-checked="true"],
-  .seg > button[aria-selected="true"] {
+  .seg > button[aria-selected="true"],
+  .seg > button[aria-current="page"] {
     color: var(--text);
     background: var(--surface);
     box-shadow: var(--shadow-1), 0 0 0 1px var(--line-2);
   }
   [data-theme="light"] .seg > button[aria-pressed="true"],
   [data-theme="light"] .seg > button[aria-checked="true"],
-  [data-theme="light"] .seg > button[aria-selected="true"] {
+  [data-theme="light"] .seg > button[aria-selected="true"],
+  [data-theme="light"] .seg > button[aria-current="page"] {
     background: #fff;
   }
 
@@ -743,4 +745,29 @@ svg.lucide {
 }
 .react-flow__attribution a {
   color: var(--text-3) !important;
+}
+
+/* Touch screens: comfortable hit areas (40–44px) for frequent controls, without enlarging icons or text.
+   In the components layer, so a component that sets its own size explicitly still wins. */
+@layer components {
+  @media (pointer: coarse) {
+    .btn {
+      min-height: 2.5rem;
+    }
+    .btn-icon {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+    .btn-icon.btn-sm {
+      width: 2.5rem;
+      height: 2.5rem;
+    }
+    .seg > button {
+      height: 2.5rem;
+    }
+    .field,
+    .field-sm {
+      min-height: 2.5rem;
+    }
+  }
 }

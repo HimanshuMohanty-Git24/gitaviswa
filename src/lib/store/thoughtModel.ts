@@ -165,6 +165,46 @@ export function restoreFromTrash(list: PersonalThought[], trash: DeletedThought[
   return { list: upsertInto(list, item.thought), trash: trash.filter((d) => d.thought.id !== id) };
 }
 
+// ── local search over the person's own words ──
+
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[’'`]/g, "");
+
+export interface ThoughtMatch {
+  thought: PersonalThought;
+  /** A short excerpt around the first match. */
+  snippet: string;
+  /** Where it matched: the current words, or an earlier wording kept by an edit. */
+  in: "text" | "earlier";
+}
+
+/**
+ * Finds saved thoughts containing every word of the query (or the exact phrase, ranked first). Only the person's own
+ * words are searched — current text and earlier wordings — never generated interpretations. Runs locally; nothing is sent.
+ */
+export function searchThoughts(list: PersonalThought[], query: string, limit = 8): ThoughtMatch[] {
+  const q = norm(query.trim());
+  const words = q.split(/\s+/).filter((w) => w.length > 1);
+  if (!words.length) return [];
+  const out: (ThoughtMatch & { rank: number })[] = [];
+  for (const t of list) {
+    const sources: [string, ThoughtMatch["in"]][] = [[t.text, "text"], ...(t.revisions ?? []).map((r) => [r.text, "earlier"] as [string, ThoughtMatch["in"]])];
+    for (const [text, where] of sources) {
+      const n = norm(text);
+      if (!words.every((w) => n.includes(w))) continue;
+      const phrase = n.indexOf(q);
+      const at = phrase >= 0 ? phrase : n.indexOf(words[0]);
+      const start = Math.max(0, at - 40);
+      const snippet = `${start > 0 ? "…" : ""}${text.slice(start, start + 140).replace(/\s+/g, " ").trim()}${start + 140 < text.length ? "…" : ""}`;
+      out.push({ thought: t, snippet, in: where, rank: (phrase >= 0 ? 2 : 1) + (where === "text" ? 0.5 : 0) });
+      break;
+    }
+  }
+  return out
+    .sort((a, b) => b.rank - a.rank || (b.thought.updatedAt ?? b.thought.createdAt) - (a.thought.updatedAt ?? a.thought.createdAt))
+    .slice(0, limit)
+    .map(({ thought, snippet, in: where }) => ({ thought, snippet, in: where }));
+}
+
 // ── connection review on saved thoughts ──
 
 export const connectionsWith = (t: PersonalThought, status: PersonalConnection["status"]) => t.connections.filter((c) => c.status === status);
@@ -242,6 +282,8 @@ export function readDraft(raw: unknown): ThoughtDraft | null {
     };
   const l = readLinks(raw.links);
   if (l) d.links = l;
+  const q = raw.aiQuote;
+  if (isObj(q) && typeof q.text === "string" && typeof q.by === "string") d.aiQuote = { text: q.text, by: q.by };
   return d;
 }
 
@@ -264,6 +306,10 @@ export function thoughtFromDraft(d: ThoughtDraft, now: number): PersonalThought 
   if (d.origin && d.origin.kind !== "free") t.origin = d.origin;
   if (fresh?.reflection) t.reflection = fresh.reflection;
   if (fresh?.enrichedBy) t.enrichedBy = fresh.enrichedBy;
+  if (!t.reflection && d.aiQuote?.text) {
+    t.reflection = d.aiQuote.text;
+    t.enrichedBy = d.aiQuote.by;
+  }
   return t;
 }
 

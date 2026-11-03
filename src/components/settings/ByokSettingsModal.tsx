@@ -1,18 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Database, Download, ExternalLink, Eye, EyeOff, LoaderCircle, Monitor, Moon, PlugZap, Radio, Search, Sparkles, Sun, Trash2, WifiOff, X } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
+import { useModal } from "@/lib/hooks/useModal";
 import { useConnection, useSettings } from "@/lib/store/settingsStore";
 import { PROVIDER_ORDER, PROVIDERS, type ProviderId } from "@/lib/llm/providers";
 import { Notice } from "@/components/ui/primitives";
 
 type Section = "model" | "search" | "appearance" | "data";
+// Everyday settings first; the AI provider, search engine and graph-database integrations are optional extras.
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: "model", label: "Language model", icon: <Sparkles size={15} /> },
-  { id: "search", label: "Search", icon: <Search size={15} /> },
   { id: "appearance", label: "Appearance", icon: <Monitor size={15} /> },
-  { id: "data", label: "Data", icon: <Database size={15} /> },
+  { id: "model", label: "AI (optional)", icon: <Sparkles size={15} /> },
+  { id: "search", label: "Search · advanced", icon: <Search size={15} /> },
+  { id: "data", label: "Graph data · advanced", icon: <Database size={15} /> },
 ];
 
 function StatusBadge({ p }: { p: ProviderId }) {
@@ -384,21 +386,24 @@ function DataSection() {
 export function ByokSettingsModal() {
   const open = useGita((s) => s.settingsOpen);
   const setOpen = useGita((s) => s.setSettingsOpen);
-  const [section, setSection] = useState<Section>("model");
+  const [section, setSection] = useState<Section>("appearance");
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModal(open, overlayRef, dialogRef, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;
     useSettings.getState().loadEnv();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (e.preventDefault(), setOpen(false));
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, setOpen]);
+    const want = useGita.getState().settingsSection;
+    setSection(SECTIONS.some((x) => x.id === want) ? (want as Section) : "appearance");
+  }, [open]);
 
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
+        <motion.div ref={overlayRef} className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Settings"

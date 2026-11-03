@@ -10,6 +10,7 @@ import {
   moveToTrash,
   readStoredTrash,
   restoreFromTrash,
+  searchThoughts,
   draftIsEmpty,
   exportDocument,
   mergeThoughts,
@@ -280,4 +281,17 @@ test("stored Recently deleted is validated; unreadable items are kept aside", ()
   assert.equal(r.items.length, 1);
   assert.equal(r.items[0].thought.v, THOUGHT_SCHEMA, "deleted schema-1 entries are migrated like any other");
   assert.equal(r.unreadable.length, 1);
+});
+
+test("search finds a thought by a distinctive phrase, in current or earlier wording, never in generated text", () => {
+  const idea = { ...thoughtFromDraft(draft("Could a city be designed around cooperation rather than competition?"), 500), id: "idea" };
+  const edited = editThought({ ...thoughtFromDraft(draft("Patience is waiting."), 600), id: "p" }, "Patience is attention.", 700);
+  const withAi = { ...thoughtFromDraft(draft("A quiet evening."), 800), id: "q", reflection: "The model mentions cooperation here." };
+  const list = [idea, edited, withAi];
+  assert.deepEqual(searchThoughts(list, "designed around COOPERATION").map((m) => m.thought.id), ["idea"], "case-insensitive phrase; generated text is not searched");
+  const earlier = searchThoughts(list, "waiting");
+  assert.deepEqual([earlier[0].thought.id, earlier[0].in], ["p", "earlier"]);
+  assert.equal(searchThoughts(list, "attention patience")[0].thought.id, "p", "all words, any order");
+  assert.deepEqual(searchThoughts(list, "x"), [], "single letters are ignored");
+  assert.deepEqual(searchThoughts(list.filter((t) => t.id !== "idea"), "cooperation"), [], "a deleted thought no longer matches");
 });

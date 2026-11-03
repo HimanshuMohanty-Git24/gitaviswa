@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ALargeSmall, ArrowLeft, ArrowRight, AudioLines, Orbit, Pause, Play } from "lucide-react";
+import { ALargeSmall, ArrowLeft, ArrowRight, AudioLines, BookOpen, Orbit, Pause, Play } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { audio, useAudio } from "@/lib/store/audioStore";
 import { isRegionalScript } from "@/lib/indic/scripts";
+import { getReadingPosition, lessonDoneAt, setReadingPosition } from "@/lib/store/readingPosition";
 import { ScriptPicker, verseLines } from "./VerseExplorer";
+import { Lesson } from "./Lesson";
 
 function TranslatorSelect() {
   const versesDoc = useGita((s) => s.versesDoc);
@@ -70,8 +72,10 @@ export function ChapterReader() {
   const audioMode = useAudio((s) => s.mode);
   const audioChapter = useAudio((s) => s.chapter);
   const playing = useAudio((s) => s.playing);
+  const lessonOpen = useGita((s) => s.lessonOpen);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [lessonDone] = useState(lessonDoneAt);
   const ch = versesDoc?.chapters.find((c) => c.number === chapterNo);
   const verses = versesDoc?.verses.filter((v) => v.chapter === chapterNo) || [];
   const chapterPlaying = playing && audioMode === "chapter" && audioChapter === chapterNo;
@@ -80,11 +84,37 @@ export function ChapterReader() {
     if (!audioVerse || !useAudio.getState().follow) return;
     document.getElementById(`reader-${audioVerse}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [audioVerse]);
+  // Showing a chapter continues at the last verse read in it; a chapter you have not been reading starts at its top.
+  // (Derived from the saved position, not a "first mount" flag, so it also holds when effects run twice.)
   useEffect(() => {
-    // Braces matter: Chromium's scrollTo may return a Promise, which React would treat as a cleanup function.
-    scrollRef.current?.scrollTo({ top: 0 });
     setSummaryOpen(false);
-  }, [chapterNo]);
+    const pos = getReadingPosition();
+    const target = pos?.chapter === chapterNo ? document.getElementById(`reader-${pos.verse}`) : null;
+    // Braces matter: Chromium's scrollTo may return a Promise, which React would treat as a cleanup function.
+    if (target) target.scrollIntoView({ block: "start" });
+    else {
+      scrollRef.current?.scrollTo({ top: 0 });
+    }
+  }, [chapterNo, lessonOpen]);
+  // Remember the first verse in view (throttled to one check per frame).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || lessonOpen) return;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const top = el.getBoundingClientRect().top + 64;
+        const first = [...el.querySelectorAll<HTMLElement>("article[id^='reader-']")].find((a) => a.getBoundingClientRect().bottom > top);
+        if (first) setReadingPosition(chapterNo, first.id.slice("reader-".length));
+      });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [chapterNo, lessonOpen]);
 
   if (!versesDoc || !ch) return null;
   const prevCh = versesDoc.chapters.find((c) => c.number === ch.number - 1);
@@ -139,6 +169,9 @@ export function ChapterReader() {
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          {lessonOpen ? (
+            <Lesson onClose={() => useGita.getState().openLesson(false)} />
+          ) : (
           <div className="mx-auto max-w-[720px] px-5 pb-24 pt-10 sm:px-8 sm:pt-14">
             <header>
               <div className="label">
@@ -161,6 +194,14 @@ export function ChapterReader() {
                   <Orbit size={14} /> See in graph
                 </button>
               </div>
+              <button className="group mt-6 flex w-full items-start gap-3 rounded-3 border border-accent-line bg-accent-soft px-4 py-3.5 text-left transition-colors hover:bg-surface-2" onClick={() => useGita.getState().openLesson(true)}>
+                <BookOpen size={17} className="mt-0.5 shrink-0 text-accent-text" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-semibold text-text">{lessonDone ? "Revisit: effort, without being ruled by the outcome" : "New to the Gita? Start with one idea"}</span>
+                  <span className="mt-0.5 block text-[13px] leading-5 text-text-2">BG 2.47: its setting, a plain explanation, an example, and your own view. About five minutes.</span>
+                </span>
+                <ArrowRight size={15} className="mt-1 shrink-0 text-text-3 transition-transform group-hover:translate-x-0.5" />
+              </button>
             </header>
 
             <div className="mt-12 border-t border-line pt-6">
@@ -174,7 +215,7 @@ export function ChapterReader() {
                     key={v.id}
                     aria-current={sel ? "true" : undefined}
                     onClick={() => select(v.id, { fly: false })}
-                    className={`group relative -mx-3 grid cursor-pointer grid-cols-[2.75rem_1fr] gap-x-3 rounded-3 px-3 py-5 transition-colors sm:-mx-5 sm:grid-cols-[3.5rem_1fr] sm:px-5 ${sel ? "bg-accent-soft" : "hover:bg-surface-2"}`}
+                    className={`group relative -mx-3 grid cursor-pointer grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2.5 rounded-3 px-3 py-5 transition-colors min-[380px]:grid-cols-[2.75rem_minmax(0,1fr)] min-[380px]:gap-x-3 sm:-mx-5 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:px-5 ${sel ? "bg-accent-soft" : "hover:bg-surface-2"}`}
                   >
                     {(sel || active) && <span className="absolute bottom-4 left-0 top-4 w-[2px] rounded-full bg-accent" aria-hidden />}
                     <div className="flex flex-col items-start gap-2 pt-1">
@@ -196,13 +237,13 @@ export function ChapterReader() {
                           {!v.canonical && <span className="chip !min-h-0 !py-0 text-[11px]">Not in the traditional 700</span>}
                         </div>
                       )}
-                      <div className={`${lineCls} text-text`}>
+                      <div className={`${lineCls} text-text [overflow-wrap:anywhere]`}>
                         {lines.map((l, i) => (
                           <div key={i}>{l}</div>
                         ))}
                       </div>
-                      {script === "deva" && <div className="serif mt-1.5 text-[14px] italic leading-[1.55] text-text-3">{v.iast.join(" ")}</div>}
-                      <p className={`serif mt-3 text-[16.5px] leading-[1.65] ${sel ? "text-text" : "text-text-2"}`}>{v.translations.en?.[String(enAuthor)]}</p>
+                      {script === "deva" && <div className="serif mt-1.5 text-[14px] italic leading-[1.55] text-text-3 [overflow-wrap:anywhere]">{v.iast.join(" ")}</div>}
+                      <p className={`serif mt-3 text-[16.5px] leading-[1.65] [overflow-wrap:anywhere] ${sel ? "text-text" : "text-text-2"}`}>{v.translations.en?.[String(enAuthor)]}</p>
                     </div>
                   </article>
                 );
@@ -234,6 +275,7 @@ export function ChapterReader() {
               )}
             </nav>
           </div>
+          )}
         </div>
       </div>
     </div>

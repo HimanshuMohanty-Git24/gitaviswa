@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ChevronDown, Copy, CornerDownRight, Download, HeartHandshake, Link2, LoaderCircle, NotebookPen, Orbit, RotateCw, ShieldCheck, Sparkles, Trash2, TriangleAlert, Undo2, Upload, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Copy, CornerDownRight, MessagesSquare, Search, Waypoints, Download, HeartHandshake, Link2, LoaderCircle, NotebookPen, Orbit, RotateCw, ShieldCheck, Sparkles, Trash2, TriangleAlert, Undo2, Upload, X } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { useDraft } from "@/lib/store/draftStore";
 import { useConnection } from "@/lib/store/settingsStore";
 import { exportStoredRaw, exportThoughts, importThoughts, purgeDeleted, restoreThoughts, trashThoughts, upsertThought } from "@/lib/store/personalStore";
-import { CHECK_IN_LABELS, connectionsWith, describeStorageError, suggestionsFresh, thoughtFromDraft, uid } from "@/lib/store/thoughtModel";
+import { CHECK_IN_LABELS, connectionsWith, describeStorageError, searchThoughts, suggestionsFresh, thoughtFromDraft, uid } from "@/lib/store/thoughtModel";
 import { retrieve } from "@/lib/graphrag/engine";
 import { offlinePerspective, suggestConnections, themeLabel } from "@/lib/graphrag/reflect";
 import { detectCrisis, CRISIS_RESOURCES } from "@/lib/graphrag/safety";
@@ -17,6 +17,14 @@ import { RichText } from "@/components/chat/RichText";
 import { NodePicker } from "@/components/graph/NodePicker";
 import { EmptyState, NodeGlyph, Notice, SectionLabel } from "@/components/ui/primitives";
 import { RelationSelect } from "./ThoughtDetail";
+import { useChat } from "@/components/chat/GraphRagChatbot";
+
+/** Ways to begin a note about a verse. Each sets how the note relates to the verse; disagreeing is as valid as agreeing. */
+const VERSE_PROMPTS: { label: string; starter: string; relation: DraftLink["relation"] }[] = [
+  { label: "I understand this as…", starter: "I understand this as ", relation: "relates_to" },
+  { label: "I disagree, or I'm unsure…", starter: "I'm not sure about this, because ", relation: "questions" },
+  { label: "This reminds me of…", starter: "This reminds me of ", relation: "reminds_me_of" },
+];
 
 const EXAMPLES = [
   { kind: "An idea", text: "Could a city be designed around cooperation rather than competition?" },
@@ -135,6 +143,19 @@ export function PersonalMindMapper() {
   const focusNonce = useDraft((s) => s.focusNonce);
   const [deleted, setDeleted] = useState<{ ids: string[]; label: string } | null>(null);
   const [trashNotice, setTrashNotice] = useState<string | null>(null);
+  const [find, setFind] = useState("");
+  // Custody: when the last backup was made, and whether the browser agreed not to evict this site's storage.
+  const [lastBackup, setLastBackup] = useState<{ at: number; count: number } | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("gitaviswa:last-backup") || "null");
+    } catch {
+      return null;
+    }
+  });
+  const [persisted, setPersisted] = useState<"unknown" | "yes" | "no" | "denied">("unknown");
+  useEffect(() => {
+    navigator.storage?.persisted?.().then((p) => setPersisted(p ? "yes" : "no"), () => {});
+  }, []);
   const [busy, setBusy] = useState<"" | "analyze" | "deepen">("");
   const [save, setSave] = useState<SaveState>({ state: "idle" });
   const [notice, setNotice] = useState<{ text: string; tone: "neutral" | "danger" } | null>(null);
@@ -157,7 +178,15 @@ export function PersonalMindMapper() {
   // A response's link to the earlier thought is shown in the banner above the composer, not with the other connections.
   const responseTo = draft.origin?.kind === "thought" ? draft.origin.thoughtId : null;
   const earlier = responseTo ? thoughts.find((t) => t.id === responseTo) : undefined;
-  const kept = links.filter((l) => l.status === "accepted" && !(responseTo && l.relation === "responds_to" && l.targetId === thoughtNodeId(responseTo)));
+  const verseOrigin = draft.origin?.kind === "verse" ? versesById.get(draft.origin.verseId) : undefined;
+  const askOrigin = draft.origin?.kind === "ask" ? draft.origin : undefined;
+  // The answer the takeaway came from (still in this session's conversation), for "keep beside your note".
+  const answer = useChat((s) => {
+    if (!askOrigin) return undefined;
+    const i = s.messages.map((m) => m.role === "user" && m.content === askOrigin.question).lastIndexOf(true);
+    return i >= 0 ? s.messages.slice(i + 1).find((m) => m.role === "assistant" && !m.streaming && m.content) : undefined;
+  });
+  const kept =links.filter((l) => l.status === "accepted" && !(responseTo && l.relation === "responds_to" && l.targetId === thoughtNodeId(responseTo)));
   const statusOf = (id: string) => links.find((l) => l.targetId === id)?.status;
   const nameOf = (id: string) => themeLabel(graphs?.nodeById.get(id)) || id;
 
@@ -273,12 +302,8 @@ export function PersonalMindMapper() {
     }
   };
 
-  const openSaved = (id: string) => {
-    const g = useGita.getState();
-    g.setLayer("PersonalThought", true);
-    g.setView("cosmos");
-    g.select(thoughtNodeId(id));
-  };
+  // The small map first: the thought in the middle, its few connections around it. The whole graph stays one click away.
+  const openSaved = (id: string) => useGita.getState().focusLineage(thoughtNodeId(id));
 
   /** Deleting moves to "Recently deleted" and offers Undo; nothing is destroyed until that list is emptied. */
   const remove = async (ids: string[], label: string) => {
@@ -343,6 +368,7 @@ export function PersonalMindMapper() {
     return { recurring: [...themes.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 6), chapters, withKept };
   }, [thoughts, versesById]);
   const maxCh = Math.max(1, ...patterns.chapters);
+  const changedSince = lastBackup ? thoughts.filter((t) => (t.updatedAt ?? t.createdAt) > lastBackup.at).length : thoughts.length;
   const toReview = thoughts.reduce((n, t) => n + connectionsWith(t, "suggested").length, 0);
 
   const nodeChip = (id: string) => {
@@ -401,6 +427,8 @@ export function PersonalMindMapper() {
   const declined = (s?.candidates ?? []).filter((c) => statusOf(c.targetId) === "rejected");
   const noClear = !!s && !themeCands.length && !verseCands.length;
   const readyToList = thoughtsStatus === "ready";
+  // Newest first; a search narrows to your own words that match (current or earlier wording).
+  const shownThoughts = find.trim() ? searchThoughts(thoughts, find, thoughts.length).map((m) => m.thought) : [...thoughts].reverse();
 
   return (
     <div className="absolute inset-0 overflow-y-auto bg-bg">
@@ -434,6 +462,72 @@ export function PersonalMindMapper() {
                 <button className="btn btn-ghost btn-icon btn-sm max-sm:h-10 max-sm:w-10" aria-label="Make this a separate thought, not a response" title="Not a response" onClick={() => useDraft.getState().clearOrigin()} disabled={saving}>
                   <X size={14} />
                 </button>
+              </div>
+            )}
+            {askOrigin && (
+              <div className="border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] leading-5 text-text-2">
+                <div className="flex items-start gap-2">
+                  <MessagesSquare size={14} className="mt-[3px] shrink-0 text-text-3" />
+                  <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                    Your takeaway from the question <span className="serif text-text">“{askOrigin.question.length > 140 ? `${askOrigin.question.slice(0, 140).trimEnd()}…` : askOrigin.question}”</span>
+                  </div>
+                  <button className="btn btn-ghost btn-icon btn-sm max-sm:h-10 max-sm:w-10" aria-label="Not a takeaway from that question" title="Not from that question" disabled={saving} onClick={() => (useDraft.getState().clearOrigin(), useDraft.getState().setAiQuote(undefined))}>
+                    <X size={14} />
+                  </button>
+                </div>
+                {askOrigin.citedNodeIds.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6">
+                    <span className="text-text-3">Sources in the answer · tap to connect:</span>
+                    {askOrigin.citedNodeIds.map((id) =>
+                      statusOf(id) === "accepted" ? (
+                        <span key={id} className="chip" aria-label={`Connected: ${nameOf(id)}`}>
+                          <Check size={12} /> {nameOf(id)}
+                        </span>
+                      ) : (
+                        <button key={id} className="chip max-sm:min-h-10" onClick={() => decide({ targetId: id, origin: "ai", why: "Cited in the answer you took this from" }, "accepted")}>
+                          + {nameOf(id)}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-6">
+                  {answer && (
+                    <label className="flex items-center gap-1.5">
+                      <input type="checkbox" checked={!!draft.aiQuote} disabled={saving} onChange={(e) => useDraft.getState().setAiQuote(e.target.checked ? { text: answer.content, by: `Ask · ${answer.via ?? "composed from the graph"}` } : undefined)} />
+                      Keep the answer beside my note, labelled as generated
+                    </label>
+                  )}
+                  <button className="font-medium text-text-2 underline-offset-2 hover:underline" onClick={() => useGita.getState().setChatOpen(true)}>
+                    Back to the answer
+                  </button>
+                </div>
+              </div>
+            )}
+            {verseOrigin && (
+              <div className="border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] leading-5 text-text-2">
+                <div className="flex items-start gap-2">
+                  <BookOpen size={14} className="mt-[3px] shrink-0 text-text-3" />
+                  <div className="min-w-0 flex-1">
+                    A note on{" "}
+                    <button className="font-medium text-text underline-offset-2 hover:underline" onClick={() => select(verseOrigin.id, { fly: false })}>
+                      BG {verseOrigin.ref}
+                    </button>
+                    . The verse stays recorded as where this began; how it connects is up to you.
+                  </div>
+                  <button className="btn btn-ghost btn-icon btn-sm max-sm:h-10 max-sm:w-10" aria-label={`This note isn't about BG ${verseOrigin.ref}`} title="Not about this verse" disabled={saving} onClick={() => (useDraft.getState().clearOrigin(), decide({ targetId: verseOrigin.id }, undefined))}>
+                    <X size={14} />
+                  </button>
+                </div>
+                {!hasText && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+                    {VERSE_PROMPTS.map((p) => (
+                      <button key={p.label} className="chip max-sm:min-h-10" onClick={() => (onType(p.starter), decide({ targetId: verseOrigin.id, relation: p.relation, origin: "user" }, "accepted"), textRef.current?.focus())}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <label htmlFor="reflect-text" className="sr-only">
@@ -531,7 +625,7 @@ export function PersonalMindMapper() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <button className="btn btn-sm" onClick={() => openSaved(save.id)}>
-                    <Orbit size={13} /> See it in the graph
+                    <Waypoints size={13} /> See it on your map
                   </button>
                   <button className="btn btn-sm btn-ghost" onClick={() => (setSave({ state: "idle" }), textRef.current?.focus())}>
                     Write another
@@ -677,7 +771,7 @@ export function PersonalMindMapper() {
                     {busy === "deepen" ? "Exploring" : "Explore with AI"}
                   </button>
                 ) : (
-                  <button className="btn" onClick={() => setSettingsOpen(true)}>
+                  <button className="btn" onClick={() => setSettingsOpen(true, "model")}>
                     <Sparkles size={14} /> Connect a model to explore with AI
                   </button>
                 )}
@@ -814,9 +908,18 @@ export function PersonalMindMapper() {
                 )}
               </div>
             )}
-            {readyToList && thoughts.length > 0 && (
+            {readyToList && thoughts.length > 1 && (
+              <div className="border-t border-line px-4 py-2.5">
+                <div className="relative">
+                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3" />
+                  <input type="search" className="field field-sm !pl-8 max-sm:!h-10" placeholder="Search your thoughts" aria-label="Search your saved thoughts" value={find} onChange={(e) => setFind(e.target.value)} />
+                </div>
+                {find.trim() && <p className="mt-1.5 text-[12px] text-text-3" role="status">{shownThoughts.length ? `${shownThoughts.length} of ${thoughts.length} thoughts` : `No saved thought contains “${find.trim()}”.`} Searched on this device only.</p>}
+              </div>
+            )}
+            {readyToList && shownThoughts.length > 0 && (
               <ul className="max-h-[42vh] divide-y divide-line overflow-y-auto border-t border-line">
-                {[...thoughts].reverse().map((t) => {
+                {shownThoughts.map((t) => {
                   const pending = connectionsWith(t, "suggested").length;
                   return (
                     <li key={t.id} className="group px-5 py-3.5">
@@ -869,7 +972,14 @@ export function PersonalMindMapper() {
               </details>
             )}
             <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-4 py-3">
-              <button className="btn btn-sm" disabled={!readyToList || !thoughts.length} onClick={() => download(`gitaviswa-reflections-${new Date().toISOString().slice(0, 10)}.json`, exportThoughts(thoughts))}>
+              <button className="btn btn-sm" disabled={!readyToList || !thoughts.length} onClick={() => {
+                  download(`gitaviswa-reflections-${new Date().toISOString().slice(0, 10)}.json`, exportThoughts(thoughts));
+                  const b = { at: Date.now(), count: thoughts.length };
+                  setLastBackup(b);
+                  try {
+                    localStorage.setItem("gitaviswa:last-backup", JSON.stringify(b));
+                  } catch {}
+                }}>
                 <Download size={13} /> Export
               </button>
               <button className="btn btn-sm" disabled={thoughtsStatus === "loading"} onClick={() => fileRef.current?.click()}>
@@ -909,6 +1019,20 @@ export function PersonalMindMapper() {
                 <Trash2 size={13} /> Delete all
               </button>
             </div>
+            {readyToList && thoughts.length > 0 && (
+              <div className="border-t border-line px-5 py-3 text-[12px] leading-5 text-text-3">
+                <p>
+                  {lastBackup ? `Last backup ${new Date(lastBackup.at).toLocaleDateString(undefined, { dateStyle: "medium" })}${changedSince ? ` · ${changedSince} saved or changed since` : " · up to date"}.` : "No backup yet: these thoughts exist only in this browser."} Backups are plain, unencrypted files. To move to another device, export here and import there.
+                </p>
+                {persisted === "no" && (
+                  <button className="mt-1 font-medium text-text-2 underline-offset-2 hover:underline" onClick={async () => setPersisted((await navigator.storage.persist().catch(() => false)) ? "yes" : "denied")}>
+                    Ask this browser not to clear them automatically
+                  </button>
+                )}
+                {persisted === "yes" && <p className="mt-1">This browser has agreed not to clear them automatically. Clearing site data yourself still removes them.</p>}
+                {persisted === "denied" && <p className="mt-1">The browser didn&apos;t agree to keep them permanently, so a regular backup matters.</p>}
+              </div>
+            )}
           </div>
         </aside>
       </div>

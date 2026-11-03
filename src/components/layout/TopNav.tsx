@@ -25,9 +25,10 @@ export function ThemeButton({ className = "" }: { className?: string }) {
 function ModelStatus() {
   const conn = useConnection();
   const setSettingsOpen = useGita((s) => s.setSettingsOpen);
-  const label = conn ? `${PROVIDERS[conn.provider].name} connected` : "Offline mode";
+  // Plain status for readers; provider and model details stay in the tooltip and in Settings.
+  const label = conn ? "AI available" : "AI not connected";
   return (
-    <button className="btn btn-ghost h-8 gap-2 px-2" onClick={() => setSettingsOpen(true)} title={conn ? `${PROVIDERS[conn.provider].name} · ${conn.model}. Open settings.` : "No language model connected. Answers are composed from the graph. Open settings."} aria-label={`Settings. ${label}`}>
+    <button className="btn btn-ghost h-8 gap-2 px-2" onClick={() => setSettingsOpen(true, "model")} title={conn ? `${PROVIDERS[conn.provider].name} · ${conn.model}. Open settings.` : "No language model connected. Answers are composed from the graph. Open settings."} aria-label={`Settings. ${label}`}>
       <span className="relative">
         <Settings size={16} />
         <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-[var(--bg)]" style={{ background: conn ? "var(--good)" : "var(--text-4)" }} />
@@ -60,9 +61,9 @@ export function TopNav() {
       </button>
 
       <nav className="hidden justify-self-center md:block" aria-label="Views">
-        <div className="seg" role="tablist">
+        <div className="seg">
           {VIEWS.map((v) => (
-            <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)} title={`${v.name} · ${v.sa}. ${v.blurb}`} className="!h-8 !px-3">
+            <button key={v.id} aria-current={view === v.id ? "page" : undefined} onClick={() => setView(v.id)} title={`${v.name} · ${v.sa}. ${v.blurb}`} className="!h-8 !px-3">
               <v.icon size={15} />
               <span>{v.name}</span>
             </button>

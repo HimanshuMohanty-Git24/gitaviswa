@@ -154,7 +154,7 @@ export function SutraPathFinder() {
                     {busy ? "Writing the explanation" : "Explain this path"}
                   </button>
                 ) : (
-                  <Notice action={<button className="text-[12px] font-medium text-accent-text hover:underline" onClick={() => setSettingsOpen(true)}>Connect</button>}>
+                  <Notice action={<button className="text-[12px] font-medium text-accent-text hover:underline" onClick={() => setSettingsOpen(true, "model")}>Connect</button>}>
                     Connect a language model to have this path explained in prose.
                   </Notice>
                 )}

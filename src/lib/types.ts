@@ -199,6 +199,8 @@ export interface ThoughtDraft {
   origin?: ThoughtOrigin;
   suggestions?: ThoughtSuggestions;
   links?: DraftLink[];
+  /** An answer the person chose to keep beside their own words (e.g. from Ask). Saved as generated material, never as their text. */
+  aiQuote?: { text: string; by: string };
 }
 
 export type ViewMode = "cosmos" | "darshana" | "adhyayana" | "manas";

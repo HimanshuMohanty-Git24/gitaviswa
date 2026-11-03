@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { RotateCw, TriangleAlert } from "lucide-react";
@@ -17,6 +17,7 @@ import { PersonalMindMapper } from "@/components/manas/PersonalMindMapper";
 import { ByokSettingsModal } from "@/components/settings/ByokSettingsModal";
 import { BrandMark } from "@/components/sacred/SacredMotifs";
 import { describeNode, findSutraPath } from "@/lib/graph/pathfinder";
+import { getReadingPosition } from "@/lib/store/readingPosition";
 
 function ViewLoading({ label }: { label: string }) {
   return (
@@ -55,9 +56,12 @@ function AppError({ error }: { error?: string }) {
           <span className="text-[15px] font-semibold">The graph could not be loaded</span>
         </div>
         <p className="mt-2 text-[13px] leading-5 text-text-2">{error || "The data files did not load."}</p>
-        <p className="mt-3 text-[13px] leading-5 text-text-3">
-          If you are running GitaViśva locally, rebuild the data with <code className="rounded bg-surface-3 px-1.5 py-0.5 text-[12px] text-text">npm run data</code> and reload.
-        </p>
+        <p className="mt-3 text-[13px] leading-5 text-text-3">Check your connection and try again. Your saved thoughts are stored separately and are not affected.</p>
+        {process.env.NODE_ENV !== "production" && (
+          <p className="mt-2 text-[12px] leading-5 text-text-3">
+            Developer: if the data files are missing, rebuild them with <code className="rounded bg-surface-3 px-1.5 py-0.5 text-[12px] text-text">npm run data</code>.
+          </p>
+        )}
         <button className="btn mt-5" onClick={() => window.location.reload()}>
           <RotateCw size={14} /> Try again
         </button>
@@ -82,6 +86,10 @@ export default function App() {
     if (v === "cosmos" || v === "darshana" || v === "adhyayana" || v === "manas") useGita.setState({ view: v });
     const ch = Number(qs.get("chapter"));
     if (ch >= 1 && ch <= 18) useGita.setState({ readerChapter: ch });
+    else {
+      const pos = getReadingPosition();
+      if (pos) useGita.setState({ readerChapter: pos.chapter });
+    }
     if (qs.get("chat") === "1") useGita.getState().setChatOpen(true);
     if (qs.get("settings") === "1") useGita.setState({ settingsOpen: true });
     const ask = qs.get("ask");
@@ -138,24 +146,52 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Keep the URL shareable without adding history entries.
+  // Keep the URL shareable. Moving to another view adds a history entry, so browser/system Back retraces your path
+  // instead of leaving the app; selections and chapter changes replace the current entry.
   const readerChapter = useGita((s) => s.readerChapter);
+  const lastView = useRef<string | null>(null);
+  const popping = useRef(false);
   useEffect(() => {
     if (status !== "ready") return;
+    const changedView = lastView.current !== null && lastView.current !== view;
+    lastView.current = view;
+    const fromPop = popping.current;
+    popping.current = false;
     const qs = new URLSearchParams();
     if (view !== "cosmos") qs.set("view", view);
     if (selectedId) qs.set("node", selectedId);
     if (view === "adhyayana") qs.set("chapter", String(readerChapter));
     const next = `${window.location.pathname}${qs.size ? `?${qs}` : ""}`;
-    if (next !== window.location.pathname + window.location.search) window.history.replaceState(null, "", next);
+    if (next === window.location.pathname + window.location.search) return;
+    if (changedView && !fromPop) window.history.pushState(null, "", next);
+    else window.history.replaceState(null, "", next);
   }, [status, view, selectedId, readerChapter]);
+  // Back / Forward: restore the view, chapter and selection the URL describes.
+  useEffect(() => {
+    const onPop = () => {
+      const qs = new URLSearchParams(window.location.search);
+      const v = qs.get("view");
+      const ch = Number(qs.get("chapter"));
+      const node = qs.get("node");
+      const g = useGita.getState();
+      popping.current = true;
+      useGita.setState({ view: v === "darshana" || v === "adhyayana" || v === "manas" ? v : "cosmos", ...(ch >= 1 && ch <= 18 ? { readerChapter: ch } : {}) });
+      if (node && g.graphs?.graph.hasNode(node)) g.select(node, { fly: false });
+      else if (!node && g.selectedId) g.select(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-dvh flex-col bg-bg text-text">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-[var(--radius-2)] focus:bg-accent focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-accent-ink">
+          Skip to content
+        </a>
         <TopNav />
         <div className="relative flex min-h-0 flex-1">
-          <main className="relative min-w-0 flex-1 overflow-hidden" id="main">
+          <main className="relative min-w-0 flex-1 overflow-hidden" id="main" tabIndex={-1}>
             {status === "error" ? (
               <AppError error={error} />
             ) : status !== "ready" ? (

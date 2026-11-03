@@ -33,6 +33,12 @@ interface DraftState {
   clearOrigin: () => void;
   /** Bumped when the composer should take focus. */
   focusNonce: number;
+  requestFocus: () => void;
+  /** Start a note about a verse (or attach the verse to writing already in progress). The verse is the note's origin and a connection the person can change or remove. */
+  startVerseNote: (verseId: string, relation?: DraftLink["relation"]) => "new" | "added";
+  /** Start a takeaway from an Ask answer: the question and cited sources are its origin (context, not endorsement). Refuses rather than replace unsaved writing. */
+  startAskNote: (question: string, citedNodeIds: string[]) => boolean;
+  setAiQuote: (quote: { text: string; by: string } | undefined) => void;
 }
 
 const DEBOUNCE_MS = 400;
@@ -105,6 +111,28 @@ export const useDraft = create<DraftState>((set, get) => {
     },
     restore: (d) => change({ ...d, updatedAt: Date.now() }),
     flush: () => (timer ? write() : writes),
+    requestFocus: () => set({ focusNonce: get().focusNonce + 1 }),
+    startAskNote: (question, citedNodeIds) => {
+      if (!draftIsEmpty(get().draft)) return false;
+      change({ ...newDraft(uid(), Date.now()), origin: { kind: "ask", question: question.slice(0, 500), citedNodeIds: citedNodeIds.slice(0, 8) } });
+      set({ restored: false, focusNonce: get().focusNonce + 1 });
+      return true;
+    },
+    setAiQuote: (quote) => {
+      const d = { ...get().draft };
+      if (quote) d.aiQuote = quote;
+      else delete d.aiQuote;
+      change(d);
+    },
+    startVerseNote: (verseId, relation = "relates_to") => {
+      const d = get().draft;
+      const now = Date.now();
+      const fresh = draftIsEmpty(d);
+      if (fresh) change({ ...newDraft(uid(), now), origin: { kind: "verse", verseId }, links: [{ targetId: verseId, status: "accepted", relation, origin: "user", at: now }] });
+      else if (!d.links?.some((l) => l.targetId === verseId && l.status === "accepted")) change(decide(d, { targetId: verseId, status: "accepted", relation, origin: "user" }, now));
+      set({ restored: fresh ? false : get().restored, focusNonce: get().focusNonce + 1 });
+      return fresh ? "new" : "added";
+    },
     startResponse: (thoughtId) => {
       if (!draftIsEmpty(get().draft)) return false;
       const now = Date.now();

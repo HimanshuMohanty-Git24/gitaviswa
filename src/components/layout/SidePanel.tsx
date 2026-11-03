@@ -74,7 +74,8 @@ export function RightDock() {
             role="dialog"
             aria-label={tab === "ask" ? "Ask" : "Details"}
             className="absolute inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden rounded-t-[16px] border-t border-line-2 bg-surface shadow-[var(--shadow-3)]"
-            style={{ height: snap === "full" ? "calc(100% - 8px)" : "58%" }}
+            // Half height is at least 440px, so a short phone still shows a verse's meaning and first action.
+            style={{ height: snap === "full" ? "calc(100% - 8px)" : "min(max(58%, 440px), calc(100% - 8px))" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -94,7 +95,7 @@ export function RightDock() {
             }}
           >
             <button
-              className="flex h-5 w-full shrink-0 touch-none items-center justify-center"
+              className="flex h-8 w-full shrink-0 touch-none items-center justify-center"
               onPointerDown={(e) => drag.start(e)}
               onClick={() => setSnap(snap === "full" ? "half" : "full")}
               aria-label={snap === "full" ? "Collapse panel" : "Expand panel"}

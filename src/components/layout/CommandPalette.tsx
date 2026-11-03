@@ -1,13 +1,16 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, CircleHelp, CornerDownLeft, MessagesSquare, Monitor, Search, Settings } from "lucide-react";
+import { BookOpen, CircleHelp, CornerDownLeft, MessagesSquare, Monitor, NotebookPen, Search, Settings } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { searchIndex, type SearchHit } from "@/lib/graphrag/search";
+import { searchThoughts } from "@/lib/store/thoughtModel";
+import { thoughtNodeId } from "@/lib/graph/graphStore";
 import { typeName } from "@/lib/graph/palette";
 import { nodeSub, nodeTitle } from "@/components/graph/NodePicker";
 import { askPartha } from "@/components/chat/GraphRagChatbot";
 import { NodeGlyph } from "@/components/ui/primitives";
+import { useModal } from "@/lib/hooks/useModal";
 import { VIEWS } from "./views";
 
 interface Item {
@@ -32,11 +35,15 @@ export function CommandPalette() {
   const graphs = useGita((s) => s.graphs);
   const versesDoc = useGita((s) => s.versesDoc);
   const select = useGita((s) => s.select);
+  const thoughts = useGita((s) => s.thoughts);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModal(open, overlayRef, dialogRef, () => setOpen(false), inputRef);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -99,8 +106,17 @@ export function CommandPalette() {
       .filter((x) => !!x.n)
       .sort((a, b) => GROUP_ORDER.indexOf(a.h.kind) - GROUP_ORDER.indexOf(b.h.kind) || b.h.score - a.h.score)
       .map(({ h, n }) => ({ id: h.id, group: GROUP_NAME[h.kind] || "Results", title: nodeTitle(n!), sub: n!.type === "Verse" ? n!.sa : nodeSub(n!), icon: <NodeGlyph node={n!} />, hint: n!.type === "Emotion" ? typeName(n!) : undefined, run: () => select(h.id) }) as Item);
-    return [...nodes, { id: "ask", group: "Ask", title: `Ask: “${t}”`, sub: "Get an answer grounded in the graph", icon: <MessagesSquare size={15} />, run: () => askPartha(t) }];
-  }, [q, hits, graphs, versesDoc, select]);
+    // Your own writing first, kept apart from scripture and never sent anywhere: matched locally, in this browser.
+    const mine: Item[] = searchThoughts(thoughts, t, 5).map((m) => ({
+      id: `mine:${m.thought.id}`,
+      group: "My thoughts · on this device",
+      title: m.snippet,
+      sub: `${new Date(m.thought.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}${m.in === "earlier" ? " · in an earlier wording" : ""}`,
+      icon: <NotebookPen size={15} />,
+      run: () => select(thoughtNodeId(m.thought.id), { fly: false }),
+    }));
+    return [...mine, ...nodes, { id: "ask", group: "Ask", title: `Ask: “${t}”`, sub: "Get an answer grounded in the graph", icon: <MessagesSquare size={15} />, run: () => askPartha(t) }];
+  }, [q, hits, graphs, versesDoc, select, thoughts]);
 
   const run = (it: Item) => {
     close();
@@ -115,8 +131,8 @@ export function CommandPalette() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--scrim)] p-3 pt-[10vh] backdrop-blur-[2px] sm:p-4 sm:pt-[12vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} onMouseDown={(e) => e.target === e.currentTarget && close()}>
-          <motion.div role="dialog" aria-modal="true" aria-label="Search" className="popover flex max-h-[76dvh] w-full max-w-[640px] flex-col overflow-hidden" initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -8, opacity: 0 }} transition={{ duration: 0.14 }}>
+        <motion.div ref={overlayRef} className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--scrim)] p-3 pt-[10vh] backdrop-blur-[2px] sm:p-4 sm:pt-[12vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} onMouseDown={(e) => e.target === e.currentTarget && close()}>
+          <motion.div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Search" className="popover flex max-h-[76dvh] w-full max-w-[640px] flex-col overflow-hidden" initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -8, opacity: 0 }} transition={{ duration: 0.14 }}>
             <div className="flex items-center gap-3 border-b border-line px-4">
               <Search size={17} className="shrink-0 text-text-3" />
               <input
@@ -169,7 +185,7 @@ export function CommandPalette() {
                   </div>
                 );
               })}
-              {q.trim() && index && items.length === 1 && <div className="px-3 pb-2 pt-4 text-center text-[13px] text-text-3">No matches in the graph. Try a verse number like 6.35 or a feeling like “restless”.</div>}
+              {q.trim() && index && items.length === 1 && <div className="px-3 pb-2 pt-4 text-center text-[13px] text-text-3">No matches in your thoughts or the graph. Try a verse number like 6.35 or a feeling like “restless”.</div>}
             </div>
             <div className="hidden items-center gap-4 border-t border-line px-4 py-2 text-[11.5px] text-text-3 sm:flex">
               <span className="flex items-center gap-1.5">
@@ -179,7 +195,7 @@ export function CommandPalette() {
               <span className="flex items-center gap-1.5">
                 <kbd className="kbd">Enter</kbd> to open
               </span>
-              <span className="ml-auto">Searches Sanskrit, IAST, five translations and every concept</span>
+              <span className="ml-auto">Searches your saved thoughts (on this device), Sanskrit, IAST, translations and concepts</span>
             </div>
           </motion.div>
         </motion.div>
