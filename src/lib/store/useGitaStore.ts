@@ -57,6 +57,8 @@ interface GitaState {
   autoRotate: boolean;
   selectedId: string | null;
   lineageFocus: string | null;
+  /** A causal chain Lineage should open on next (e.g. from the home page); cleared once shown. */
+  lineageChain: string | null;
   readerChapter: number;
   /** The short beginner lesson is open in the reader. */
   lessonOpen: boolean;
@@ -95,6 +97,7 @@ interface GitaState {
   setAutoRotate: (on: boolean) => void;
   select: (id: string | null, opts?: { fly?: boolean }) => void;
   focusLineage: (id: string) => void;
+  openChain: (id: string) => void;
   openChapter: (n: number) => void;
   openLesson: (open: boolean) => void;
   setHighlight: (h: Highlight | null) => void;
@@ -161,7 +164,7 @@ export const useGita = create<GitaState>((set, get) => ({
   trash: [],
   graphVersion: 0,
 
-  view: "cosmos",
+  view: "home",
   themePref: "auto",
   theme: "dark",
   dockTab: "details",
@@ -170,6 +173,7 @@ export const useGita = create<GitaState>((set, get) => ({
   autoRotate: true,
   selectedId: null,
   lineageFocus: "BG_2.47",
+  lineageChain: null,
   // First visits start at the beginning; afterwards the saved reading position takes over (page.tsx).
   readerChapter: 1,
   lessonOpen: false,
@@ -276,6 +280,7 @@ export const useGita = create<GitaState>((set, get) => ({
     }
   },
   focusLineage: (id) => set({ lineageFocus: id, view: "darshana" }),
+  openChain: (lineageChain) => set({ lineageChain, view: "darshana" }),
   openChapter: (n) => set({ readerChapter: n, view: "adhyayana", lessonOpen: false }),
   openLesson: (lessonOpen) => set(lessonOpen ? { lessonOpen, view: "adhyayana" } : { lessonOpen }),
   setHighlight: (highlight) => set({ highlight }),

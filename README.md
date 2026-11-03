@@ -34,6 +34,7 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 
 | View | Name | What you can do |
 | --- | --- | --- |
+| Front page | **Home** | What GitaViśva is, told through the Gita's own arc in Pahari-style paintings: the chariot between the armies, Arjuna's *fight or flight* moment with life situations to start from, BG 2.47 and other well-known verses (with recitation), a live 2D preview of the real graph, three chapter scenes, and a door into each tool. It lives at `/` and paints before the verse data loads; the tools keep their `?view=` links, and older `/?node=…` links still open Explore. |
 | 3D | **Explore** (*Viśvarūpa*) | The 18 chapters as amber hubs on a ring, every verse clustered around its chapter, and concepts, states of mind, characters and life situations drawn inward. The legend doubles as the filter; **Display** colours by type, chapter or Louvain community and toggles relationship families; **Find a path** traces the weighted shortest path between any two nodes (or a curated thematic thread). Hovering or selecting a node lights its neighbourhood; labels appear as you move closer. |
 | 2D | **Lineage** (*Darśana*) | A focused diagram for any node: what leads to it on the left (the question or dilemma that triggered a verse, its speaker, the preceding verse), the focus card in the centre, and what follows on the right (answers, echoes, culminations, states it heals, concepts it defines), grouped under relation headings. On narrow screens it becomes a vertical list. Includes a causal-chain mode (e.g. the 2.62-63 *ladder of fall*). |
 | Reader | **Read** (*Adhyayana*) | Chapter-by-chapter reading plus a verse panel: Devanagari / IAST / phonetic / seven regional scripts, five English and two Hindi translations, 16 commentaries across Advaita, Viśiṣṭādvaita, Dvaita, Śuddhādvaita and Kashmir Śaivism, guru–laghu scansion, and word-by-word padaccheda. Hovering a word lights up every verse that shares its stem. |
@@ -245,6 +246,7 @@ src/
 - Text, transliteration, word meanings, translations and commentaries: [The Gita Initiative — gita/gita](https://github.com/gita/gita) (Unlicense), mirrored by [praneshp1org/Bhagavad-Gita-JSON-data](https://github.com/praneshp1org/Bhagavad-Gita-JSON-data); supplemental source [vedicscriptures/bhagavad-gita](https://github.com/vedicscriptures/bhagavad-gita) (GPL-3.0).
 - Recitations: [holy-bhagavad-gita.org](https://www.holy-bhagavad-gita.org) (streamed, not redistributed) and the Internet Archive's *[Bhagavad Gita Chanting](https://archive.org/details/bhagavad-gita-chanting)* collections.
 - Translators and commentators retain their respective rights; see each item in the dataset.
+- Home-page paintings (`public/images/home`): made with AI image generation in the manner of Pahari miniature painting, and credited as such on the page.
 - Code: MIT.
 
 <div align="center"><sub>ॐ पूर्णमदः पूर्णमिदम् — composed with reverence.</sub></div>

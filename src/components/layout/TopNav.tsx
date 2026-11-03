@@ -47,12 +47,19 @@ export function TopNav() {
   const setDockTab = useGita((s) => s.setDockTab);
   const setPaletteOpen = useGita((s) => s.setPaletteOpen);
   const setWelcomeOpen = useGita((s) => s.setWelcomeOpen);
+  const select = useGita((s) => s.select);
   const askActive = chatOpen && dockTab === "ask";
   const mod = useModKey();
 
   return (
     <header className="relative z-30 grid h-14 shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-line bg-bg px-3 md:grid-cols-[auto_1fr_auto] md:px-4 xl:grid-cols-[1fr_auto_1fr]">
-      <button className="flex min-w-0 items-center gap-2.5 justify-self-start rounded-[var(--radius-2)] pr-2" onClick={() => setWelcomeOpen(true)} title="About GitaViśva">
+      <button
+        className="flex min-w-0 items-center gap-2.5 justify-self-start rounded-[var(--radius-2)] pr-2"
+        onClick={() => (select(null), setView("home"))}
+        aria-current={view === "home" ? "page" : undefined}
+        aria-label="GitaViśva home"
+        title="Home"
+      >
         <BrandMark size={26} />
         <span className="flex items-baseline gap-2">
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-text">GitaViśva</span>

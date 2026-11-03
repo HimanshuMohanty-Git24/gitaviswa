@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, CircleHelp, CornerDownLeft, MessagesSquare, Monitor, NotebookPen, Search, Settings } from "lucide-react";
+import { BookOpen, CircleHelp, CornerDownLeft, MessagesSquare, Monitor, NotebookPen, Search, Settings, House } from "lucide-react";
 import { useGita } from "@/lib/store/useGitaStore";
 import { searchIndex, type SearchHit } from "@/lib/graphrag/search";
 import { searchThoughts } from "@/lib/store/thoughtModel";
@@ -91,7 +91,10 @@ export function CommandPalette() {
     const s = useGita.getState;
     const t = q.trim();
     if (!t) {
-      const nav: Item[] = VIEWS.map((v) => ({ id: `view:${v.id}`, group: "Go to", title: v.name, sub: v.blurb, icon: <v.icon size={15} />, run: () => s().setView(v.id) }));
+      const nav: Item[] = [
+        { id: "view:home", group: "Go to", title: "Home", sub: "What GitaViśva is, and ways in", icon: <House size={15} />, run: () => (s().select(null), s().setView("home")) },
+        ...VIEWS.map((v) => ({ id: `view:${v.id}`, group: "Go to", title: v.name, sub: v.blurb, icon: <v.icon size={15} />, run: () => s().setView(v.id) })),
+      ];
       const actions: Item[] = [
         { id: "act:ask", group: "Actions", title: "Ask a question", icon: <MessagesSquare size={15} />, run: () => s().setChatOpen(true) },
         { id: "act:theme", group: "Actions", title: "Switch theme", sub: "System, dark or light", icon: <Monitor size={15} />, run: () => s().setThemePref(({ auto: "dark", dark: "light", light: "auto" } as const)[s().themePref]) },

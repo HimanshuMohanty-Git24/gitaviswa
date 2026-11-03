@@ -14,10 +14,21 @@ import { AudioDock } from "@/components/reader/AudioDock";
 import { ChapterReader } from "@/components/reader/ChapterReader";
 import { askPartha } from "@/components/chat/GraphRagChatbot";
 import { PersonalMindMapper } from "@/components/manas/PersonalMindMapper";
+import Home from "@/components/home/Home";
 import { ByokSettingsModal } from "@/components/settings/ByokSettingsModal";
 import { BrandMark } from "@/components/sacred/SacredMotifs";
 import { describeNode, findSutraPath } from "@/lib/graph/pathfinder";
 import { getReadingPosition } from "@/lib/store/readingPosition";
+import type { ViewMode } from "@/lib/types";
+
+const VIEW_IDS: ViewMode[] = ["home", "cosmos", "darshana", "adhyayana", "manas"];
+const isView = (v: string | null): v is ViewMode => !!v && (VIEW_IDS as string[]).includes(v);
+/** `/` is the home page. Links from before it existed (`/?node=…`, `/?trace=…`, `/?ask=…`) still open Explore. */
+function viewFromQuery(qs: URLSearchParams): ViewMode {
+  const v = qs.get("view");
+  if (isView(v)) return v;
+  return qs.get("node") || qs.get("trace") || qs.get("ask") || qs.get("chat") === "1" ? "cosmos" : "home";
+}
 
 function ViewLoading({ label }: { label: string }) {
   return (
@@ -82,8 +93,9 @@ export default function App() {
     if (pref === "dark" || pref === "light" || pref === "auto") useGita.setState({ themePref: pref });
     // Deep links: ?view=darshana&node=BG_2.47&chapter=2
     const qs = new URLSearchParams(window.location.search);
-    const v = qs.get("view");
-    if (v === "cosmos" || v === "darshana" || v === "adhyayana" || v === "manas") useGita.setState({ view: v });
+    const startView = viewFromQuery(qs);
+    useGita.setState({ view: startView });
+    if (startView === "home") delete document.documentElement.dataset.entry;
     const ch = Number(qs.get("chapter"));
     if (ch >= 1 && ch <= 18) useGita.setState({ readerChapter: ch });
     else {
@@ -95,12 +107,14 @@ export default function App() {
     const ask = qs.get("ask");
     if (ask) askPartha(ask.slice(0, 500));
     const node = qs.get("node");
-    // First visit with no specific destination: show the guide once.
+    // First visit with no specific destination: the home page is the introduction. Arriving straight in a view
+    // (a shared ?view= link) shows the short guide once instead.
     let welcomed = true;
     try {
       welcomed = !!localStorage.getItem("gitaviswa:welcomed");
+      if (!welcomed && startView === "home") localStorage.setItem("gitaviswa:welcomed", "1");
     } catch {}
-    if (!welcomed && !node && !ask && !qs.get("trace") && !qs.get("settings")) useGita.setState({ welcomeOpen: true });
+    if (!welcomed && startView !== "home" && !node && !ask && !qs.get("trace") && !qs.get("settings")) useGita.setState({ welcomeOpen: true });
     useGita
       .getState()
       .init()
@@ -131,6 +145,20 @@ export default function App() {
     return () => m.removeEventListener("change", apply);
   }, [themePref]);
 
+  // A deep link hid the server-rendered home page (layout.tsx); show it again once it has left (after its fade-out),
+  // so going home later works normally.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!root.dataset.entry) return;
+    // The first pass renders the server's "home" before the URL's view is applied; the store already knows better.
+    if (view === "home") {
+      if (useGita.getState().view === "home") delete root.dataset.entry;
+      return;
+    }
+    const t = window.setTimeout(() => delete root.dataset.entry, 400);
+    return () => window.clearTimeout(t);
+  }, [view]);
+
   // Escape steps back one level: highlight → selection. (Dialogs handle their own Escape first.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -158,7 +186,7 @@ export default function App() {
     const fromPop = popping.current;
     popping.current = false;
     const qs = new URLSearchParams();
-    if (view !== "cosmos") qs.set("view", view);
+    if (view !== "home" || selectedId) qs.set("view", view);
     if (selectedId) qs.set("node", selectedId);
     if (view === "adhyayana") qs.set("chapter", String(readerChapter));
     const next = `${window.location.pathname}${qs.size ? `?${qs}` : ""}`;
@@ -170,12 +198,11 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const qs = new URLSearchParams(window.location.search);
-      const v = qs.get("view");
       const ch = Number(qs.get("chapter"));
       const node = qs.get("node");
       const g = useGita.getState();
       popping.current = true;
-      useGita.setState({ view: v === "darshana" || v === "adhyayana" || v === "manas" ? v : "cosmos", ...(ch >= 1 && ch <= 18 ? { readerChapter: ch } : {}) });
+      useGita.setState({ view: viewFromQuery(qs), ...(ch >= 1 && ch <= 18 ? { readerChapter: ch } : {}) });
       if (node && g.graphs?.graph.hasNode(node)) g.select(node, { fly: false });
       else if (!node && g.selectedId) g.select(null);
     };
@@ -192,25 +219,30 @@ export default function App() {
         <TopNav />
         <div className="relative flex min-h-0 flex-1">
           <main className="relative min-w-0 flex-1 overflow-hidden" id="main" tabIndex={-1}>
-            {status === "error" ? (
-              <AppError error={error} />
-            ) : status !== "ready" ? (
-              <AppLoading />
-            ) : (
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div key={view} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
-                  {view === "cosmos" && (
-                    <>
-                      <CosmicGraph3D />
-                      <GraphHud />
-                    </>
-                  )}
-                  {view === "darshana" && <LineageGraph2D />}
-                  {view === "adhyayana" && <ChapterReader />}
-                  {view === "manas" && <PersonalMindMapper />}
-                </motion.div>
-              </AnimatePresence>
-            )}
+            {/* The home page paints straight away; the tools wait for the data. */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={view} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
+                {view === "home" ? (
+                  <Home />
+                ) : status === "error" ? (
+                  <AppError error={error} />
+                ) : status !== "ready" ? (
+                  <AppLoading />
+                ) : (
+                  <>
+                    {view === "cosmos" && (
+                      <>
+                        <CosmicGraph3D />
+                        <GraphHud />
+                      </>
+                    )}
+                    {view === "darshana" && <LineageGraph2D />}
+                    {view === "adhyayana" && <ChapterReader />}
+                    {view === "manas" && <PersonalMindMapper />}
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </main>
           {status === "ready" && <RightDock />}
         </div>

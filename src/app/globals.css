@@ -771,3 +771,53 @@ svg.lucide {
     }
   }
 }
+
+/* ── Home page ──────────────────────────────────────────────────────────────────────────────────────
+   The paintings are dark by nature, so the sections that sit on them carry data-theme="dark" locally and
+   stay legible in either theme. Everything else follows the active theme. */
+[data-entry="deep"] .home-root {
+  visibility: hidden;
+}
+.home-hero-img {
+  object-position: 82% 50%;
+}
+.home-hero-scrim {
+  background:
+    linear-gradient(90deg, rgba(12, 7, 3, 0.8) 0%, rgba(12, 7, 3, 0.5) 34%, rgba(12, 7, 3, 0) 66%),
+    linear-gradient(0deg, rgba(12, 7, 3, 0.5) 0%, rgba(12, 7, 3, 0) 30%);
+}
+@media (max-aspect-ratio: 1/1) {
+  .home-hero-img {
+    object-position: 78% 50%;
+  }
+  /* Short phones: the words fill the first screen and the chariot follows just below, rather than under them. */
+  .home-hero {
+    min-height: max(100%, 44rem);
+  }
+  .home-hero-scrim {
+    background: linear-gradient(180deg, rgba(12, 7, 3, 0.78) 0%, rgba(12, 7, 3, 0.42) 42%, rgba(12, 7, 3, 0) 64%);
+  }
+}
+/* Secondary action over a painting: needs its own backdrop to keep contrast. */
+.home-glass {
+  color: #f3ebdf;
+  background: rgba(18, 11, 5, 0.42);
+  border-color: rgba(245, 236, 222, 0.3);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.home-glass:hover {
+  color: #fffaf2;
+  background: rgba(18, 11, 5, 0.6);
+  border-color: rgba(245, 236, 222, 0.48);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .home-glass {
+    background: rgba(18, 11, 5, 0.85);
+    backdrop-filter: none;
+  }
+}
+.home-rail {
+  scroll-padding-inline: 1.25rem;
+  scrollbar-width: thin;
+}

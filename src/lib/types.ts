@@ -203,4 +203,5 @@ export interface ThoughtDraft {
   aiQuote?: { text: string; by: string };
 }
 
-export type ViewMode = "cosmos" | "darshana" | "adhyayana" | "manas";
+/** "home" is the front page at `/`; the others are the four tools (`?view=`). */
+export type ViewMode = "home" | "cosmos" | "darshana" | "adhyayana" | "manas";

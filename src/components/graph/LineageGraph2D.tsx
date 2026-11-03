@@ -587,6 +587,13 @@ function Flow() {
     } catch {}
   };
   const [chainId, setChainId] = useState<string | null>(null);
+  // A chain requested from elsewhere (the home page) opens once, then the toolbar owns it.
+  const pendingChain = useGita((s) => s.lineageChain);
+  useEffect(() => {
+    if (!pendingChain) return;
+    setChainId(pendingChain);
+    useGita.setState({ lineageChain: null });
+  }, [pendingChain]);
   const { fitView, setViewport } = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   const outerRef = useRef<HTMLDivElement>(null);
