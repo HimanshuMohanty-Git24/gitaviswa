@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4, Tiro_Devanagari_Sanskrit } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // Variable faces (full axes). Pinning discrete weights narrows the axis, which makes Google intermittently serve
@@ -51,7 +52,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: entryScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Vercel Web Analytics: cookieless page-view counts, no personal data. Only on Vercel deployments
+            (VERCEL is set at build time there), so copies run on someone's own computer send nothing. */}
+        {process.env.VERCEL ? <Analytics /> : null}
+      </body>
     </html>
   );
 }
