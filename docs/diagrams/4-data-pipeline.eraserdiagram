@@ -35,7 +35,7 @@ Outputs [icon: folder, color: green, label: "public/data"] {
 }
 
 Extras [icon: plus-circle, color: orange, label: "Commentary extras · Śaṅkara · Rāmānuja · Abhinavagupta"]
-Layout step [icon: grid, color: orange, label: "3D layout precompute"]
+Precompute [icon: grid, color: orange, label: "3D layout precompute"]
 Embed step [icon: layers, color: orange, label: "MiniLM embeddings"]
 Neo4j [shape: cylinder, icon: database, color: blue, label: "Neo4j · optional"]
 
@@ -46,6 +46,6 @@ Gate > Verses, Graph, Cypher, Commentary: all checks pass
 Gate > Stop: any check fails
 Per verse > Extras
 Extras > Commentary: fills gaps · adds translations
-Graph > Layout step > Layout
+Graph > Precompute > Layout
 Verses, Graph > Embed step > Vectors
 Cypher --> Neo4j: one-click sync

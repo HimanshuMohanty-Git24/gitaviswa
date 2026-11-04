@@ -1,7 +1,6 @@
 // GitaViśva · what happens when you Ask
 // Eraser: Diagram as code → type "Sequence"
 typeface clean
-autoNumber on
 
 You [icon: user, color: orange] > Ask panel [icon: message-circle, color: blue]: I feel overwhelmed by expectations at work
 Ask panel > Safety check [icon: shield, color: red]: look for crisis language

@@ -17,7 +17,7 @@ Build time [icon: terminal, color: orange] {
   Graph compiler [icon: cpu, label: "Graph compiler · clean · IAST · chandas · speakers · ontology"]
   Curated layers [icon: edit-3, label: "Curated layers · dialogues · causal chains · sutra threads · antidotes"]
   Integrity gate [icon: shield, label: "Integrity gate · 84 textual anchors · no dangling edges"]
-  Layout precompute [icon: grid, label: "3D layout precompute"]
+  Precompute [icon: grid, label: "3D layout precompute"]
   Embeddings [icon: layers, label: "MiniLM sentence vectors (optional)"]
 }
 
@@ -60,8 +60,8 @@ LLM providers [icon: cpu, color: red] {
 Gita dataset, Vedic scriptures > Resilient fetch
 Resilient fetch > Graph compiler > Curated layers > Integrity gate
 Integrity gate > Static data: writes JSON
-Integrity gate > Layout precompute, Embeddings
-Layout precompute, Embeddings > Static data
+Integrity gate > Precompute, Embeddings
+Precompute, Embeddings > Static data
 Static data > Store: fetched once
 Static data > Offline cache: cached
 App shell > Views

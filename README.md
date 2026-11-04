@@ -267,7 +267,14 @@ With no API key, everything except LLM-written prose still works: the 2D/3D grap
 
 ## Architecture
 
-Editable sources for the detailed diagrams (system, knowledge graph, what happens when you ask, and how the graph is built) are in [`docs/diagrams/`](docs/diagrams/). Paste one into [eraser.io](https://www.eraser.io) (Diagram as code) to view or change it.
+Open data is compiled once at build time into a verified knowledge graph and served as static files. Everything else (graph, search, retrieval, your journal) runs in your browser. The server only relays AI answers, using your own key.
+
+<a href="docs/diagrams/system-architecture.webp"><img src="docs/diagrams/system-architecture.webp" width="100%" alt="System architecture: open sources feed a build-time compiler and integrity gate; the verified data is served from Vercel's CDN; the browser holds the store, graphology, Orama search, the GraphRAG engine and the five views; a Vercel function relays answers from the user's chosen AI provider." /></a>
+
+The diagrams in this README are made with [eraser.io](https://www.eraser.io). Their editable sources are in [`docs/diagrams/`](docs/diagrams/); paste one into eraser.io (Diagram as code) to view or change it. Click any diagram to open it full size.
+
+<details>
+<summary>Text version (Mermaid)</summary>
 
 ```mermaid
 flowchart LR
@@ -299,9 +306,13 @@ flowchart LR
   end
 ```
 
+</details>
+
 ## The knowledge graph
 
 **857 nodes · 5,350 relationships · 0 integrity errors**
+
+<a href="docs/diagrams/knowledge-graph.webp"><img src="docs/diagrams/knowledge-graph.webp" width="560" alt="The knowledge graph schema: chapters, verses, characters, Sanskrit concepts, mental states and life situations, with every relationship type and its count; your own thoughts link in privately from your device." /></a>
 
 | Label | Count | Notes |
 | --- | ---: | --- |
@@ -323,6 +334,8 @@ Relations (count): `MENTIONS_CONCEPT` 1221 · `BELONGS_TO` 701 · `SPOKE` 701 ·
 - **Antidotes** (`ANTIDOTE_TO`): 44 healer→affliction links, each grounded in a verse.
 
 ## Data pipeline
+
+<a href="docs/diagrams/data-pipeline.webp"><img src="docs/diagrams/data-pipeline.webp" width="100%" alt="How the graph is built: sources are fetched resiliently into a cache, cleaned, transliterated, scanned, matched to the ontology and curated, then pass an integrity gate before anything is written to public/data; a failed check writes nothing." /></a>
 
 `scripts/build-gita-knowledge-graph.mjs` (about 1.5 s once sources are cached):
 
