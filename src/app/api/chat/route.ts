@@ -4,7 +4,7 @@ import { openStream, ProviderError, resolveProvider, type ChatMessage } from "@/
 import { ANALYZE_SYSTEM, BRIDGE_SYSTEM, COMMENTARY_SYSTEM, PARTHA_SARATHI_SYSTEM, TRANSLATE_SYSTEM, buildUserTurn } from "@/lib/graphrag/prompts";
 import { getServerRag } from "@/lib/server/data";
 import { retrieve } from "@/lib/graphrag/engine";
-import { isLocalRequest } from "@/lib/server/guard";
+import { isLocalRequest, serverKeysAllowed } from "@/lib/server/guard";
 import { embedQueryServer } from "@/lib/server/embedder";
 
 export const runtime = "nodejs";
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       model: body.model,
       // Custom endpoints are honoured only for local requests (prevents use as an open relay when deployed).
       baseUrl: isLocalRequest(req) ? body.baseUrl : null,
+      serverKeys: serverKeysAllowed(req),
     });
   } catch (e) {
     const err = e as ProviderError;

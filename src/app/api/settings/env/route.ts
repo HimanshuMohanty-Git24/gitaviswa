@@ -1,36 +1,38 @@
 import { NextResponse } from "next/server";
 import { isProviderId, maskKey, PROVIDER_ORDER, PROVIDERS, type ProviderId } from "@/lib/llm/providers";
 import { ENV_LOCAL, envSources, isSafeEnvValue, upsertEnvLocal } from "@/lib/server/envfile";
-import { envWriteAllowed, isLocalRequest } from "@/lib/server/guard";
+import { envWriteAllowed, isLocalRequest, serverKeysAllowed } from "@/lib/server/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Which providers are configured on the server (.env.local / .env / environment). Keys are never returned, only masked. */
+/** Which providers are configured on the server (.env.local / .env / environment). Keys are never returned, only masked.
+ *  Visitors to a deployment see none of the server's own configuration unless its owner shares it (see serverKeysAllowed). */
 export async function GET(req: Request) {
   const sourceOf = await envSources();
+  const local = isLocalRequest(req);
+  const shared = serverKeysAllowed(req);
   const providers = {} as Record<ProviderId, { configured: boolean; source: string | null; masked: string | null; model: string | null; baseUrl?: string | null }>;
   for (const id of PROVIDER_ORDER) {
     const p = PROVIDERS[id];
-    const key = p.envKey ? process.env[p.envKey]?.trim() : undefined;
+    const key = shared && p.envKey ? process.env[p.envKey]?.trim() : undefined;
     providers[id] = {
-      configured: p.envKey ? !!key : !!process.env.OLLAMA_BASE_URL?.trim(),
-      source: p.envKey ? (key ? sourceOf(p.envKey) : null) : sourceOf("OLLAMA_BASE_URL"),
+      configured: p.envKey ? !!key : shared && !!process.env.OLLAMA_BASE_URL?.trim(),
+      source: p.envKey ? (key ? sourceOf(p.envKey) : null) : shared ? sourceOf("OLLAMA_BASE_URL") : null,
       masked: key ? maskKey(key) : null,
       model: process.env[p.envModel]?.trim() || null,
-      ...(id === "ollama" ? { baseUrl: process.env.OLLAMA_BASE_URL?.trim() || null } : {}),
+      ...(id === "ollama" ? { baseUrl: (shared && process.env.OLLAMA_BASE_URL?.trim()) || null } : {}),
     };
   }
   const def = process.env.LLM_PROVIDER?.trim();
   const write = envWriteAllowed();
-  const local = isLocalRequest(req);
   return NextResponse.json({
     providers,
     defaultProvider: def && isProviderId(def) ? def : null,
     writable: write.allowed && local,
-    reason: !local ? "Settings can only be written from localhost." : write.reason,
+    reason: !local ? "On this site your key stays in your browser and is not stored on the server." : write.reason,
     file: ENV_LOCAL,
-    neo4j: { configured: !!process.env.NEO4J_URI?.trim(), uri: process.env.NEO4J_URI?.trim() || null },
+    neo4j: local ? { configured: !!process.env.NEO4J_URI?.trim(), uri: process.env.NEO4J_URI?.trim() || null } : { configured: false, uri: null },
   });
 }
 
@@ -46,7 +48,7 @@ interface PostBody {
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as PostBody;
   if (!isProviderId(body.provider)) return NextResponse.json({ written: false, reason: "Unknown provider." }, { status: 400 });
-  if (!isLocalRequest(req)) return NextResponse.json({ written: false, reason: "Only localhost may write .env.local." }, { status: 403 });
+  if (!isLocalRequest(req)) return NextResponse.json({ written: false, reason: "On this site your key stays in your browser and is not stored on the server." }, { status: 403 });
   const allowed = envWriteAllowed();
   if (!allowed.allowed) return NextResponse.json({ written: false, reason: allowed.reason });
 

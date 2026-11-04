@@ -29,6 +29,14 @@ export function isLocalRequest(req: Request): boolean {
   return true;
 }
 
+/**
+ * Keys in the server's environment (.env.local, .env, the host's settings) serve only requests from this machine,
+ * so a public deployment never spends its owner's key on visitors. GITAVISWA_SHARE_SERVER_KEYS=true opts in.
+ */
+export function serverKeysAllowed(req: Request): boolean {
+  return process.env.GITAVISWA_SHARE_SERVER_KEYS === "true" || isLocalRequest(req);
+}
+
 export function envWriteAllowed(): { allowed: boolean; reason?: string } {
   if (process.env.NODE_ENV !== "production") return { allowed: true };
   if (process.env.GITAVISWA_ALLOW_ENV_WRITE === "true") return { allowed: true };

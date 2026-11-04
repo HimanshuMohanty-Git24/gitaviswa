@@ -1,0 +1,6 @@
+# `vercel deploy` uploads this folder and does not read .gitignore. Keep secrets and local-only files off Vercel.
+.env
+.env.*
+.next-verify
+*.tsbuildinfo
+audit
