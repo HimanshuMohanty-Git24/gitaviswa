@@ -15,7 +15,10 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 ## Contents
 
 - [What it is](#what-it-is)
-- [Quick start](#quick-start)
+- [Run it on your own computer](#run-it-on-your-own-computer) (step by step, no coding needed)
+- [Connect a language model](#connect-a-language-model) (optional: where to get a free API key)
+- [Put it online](#put-it-online) (hosting a public copy)
+- [For developers](#for-developers)
 - [Works with zero keys, fully offline](#works-with-zero-keys-fully-offline)
 - [Architecture](#architecture)
 - [The knowledge graph](#the-knowledge-graph)
@@ -44,13 +47,161 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 
 **Design system.** Tokens, type roles, the radius and z-index scales and component classes are documented at the top of `src/app/globals.css`; node-kind colours and shapes live in `src/lib/graph/palette.ts` (three categorical hues validated for colour-blind separation in both themes, with shape and size as secondary channels). The interface follows the system theme unless you pin one.
 
-## Quick start
+## Run it on your own computer
+
+You don't need to know how to code. It takes about 15 minutes, most of it waiting for downloads. You need a Windows, macOS or Linux computer, about 2 GB of free disk space and an internet connection for the first setup. After that, GitaViśva runs on your computer and most of it works offline.
+
+### 1. Install Node.js (once)
+
+Node.js is the free program that runs GitaViśva. Go to [nodejs.org](https://nodejs.org), download the version marked **LTS**, run the installer and accept the defaults.
+
+### 2. Download GitaViśva (once)
+
+- **Easiest:** on this project's GitHub page, click the green **Code** button, then **Download ZIP**. Unzip it somewhere easy to find, such as your Documents folder.
+- **With Git:** run `git clone <repository-url>`, using the address shown under the green **Code** button. With Git, getting updates later takes one command.
+
+### 3. Open a terminal in the GitaViśva folder
+
+A terminal is a window where you type commands. Open it inside the folder that contains `package.json`:
+
+- **Windows:** open the folder in File Explorer, click the address bar, type `cmd` and press Enter.
+- **macOS:** open the **Terminal** app, type `cd` followed by a space, drag the folder into the Terminal window and press Enter.
+- **Linux:** right-click inside the folder and choose **Open in Terminal**.
+
+To check that Node.js is ready, type `node -v` and press Enter. You should see a version number of `v20` or higher.
+
+### 4. Install (once, a few minutes)
+
+```bash
+npm install
+```
+
+Wait until you can type again. Lines that start with `npm warn` are normal. If it stops with a network error, run the same command again.
+
+### 5. Build and start
+
+```bash
+npm run build
+npm start
+```
+
+`npm run build` prepares the app. It takes one to three minutes, and you run it once, then again after each update. `npm start` runs the app. When the terminal shows `Ready`, open **<http://localhost:3000>** in your browser.
+
+Keep the terminal open while you use GitaViśva. To stop it, click in the terminal and press **Ctrl + C**, or close the window.
+
+### Next time
+
+Open a terminal in the folder (step 3), run `npm start` and open <http://localhost:3000>.
+
+### Getting updates
+
+- **If you used Git:** run `git pull`, then `npm install`, then `npm run build`.
+- **If you downloaded the ZIP:** download it again, unzip it to a new folder and repeat steps 3 to 5.
+
+Your saved thoughts, settings and API key are kept in your browser, not in the folder, so they carry over as long as you use the same browser and the same address (`localhost:3000`).
+
+### If something goes wrong
+
+| What you see | What to do |
+| --- | --- |
+| `'node' is not recognized` or `command not found: npm` | Node.js is not installed, or the terminal was opened before you installed it. Install Node.js (step 1), close the terminal and open a new one. |
+| `EADDRINUSE` or `address already in use` | Another program is using port 3000. Run `npm start -- -p 3001` and open <http://localhost:3001>. Thoughts saved at `localhost:3000` will not appear there, because the browser treats each address separately. |
+| `npm install` stops with `ECONNRESET` or `ETIMEDOUT` | The connection dropped. Run `npm install` again. |
+| The page is blank or keeps loading | Refresh the page. If you have just updated, run `npm run build` again before `npm start`. |
+
+## Connect a language model
+
+This step is optional. Without it, everything except AI-written text still works: the graph, the reader, commentaries, recitation, search, Reflect, and Ask, which then puts its answer together directly from the graph. Connecting a language model adds written answers in Ask, explanations of paths, AI translations of Sanskrit-only commentaries, and verse meanings in more Indian languages.
+
+To connect one you need an **API key**: a password-like code that lets GitaViśva use an AI service on your behalf. You create it on the service's website and paste it into GitaViśva.
+
+| Service | Cost | Get a key at | The key starts with |
+| --- | --- | --- | --- |
+| **Groq** (recommended) | Free plan with daily limits | [console.groq.com/keys](https://console.groq.com/keys) | `gsk_` |
+| **OpenRouter** | Free models (names ending in `:free`): 50 requests a day, or 1,000 a day after a one-time purchase of $10 of credit | [openrouter.ai/keys](https://openrouter.ai/keys) | `sk-or-` |
+| **Ollama** | Free, runs on your own computer, no key. Needs a fairly powerful computer and works only when GitaViśva runs on the same computer. | [ollama.com/download](https://ollama.com/download) | no key |
+| **OpenAI** | Paid, pay as you go | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `sk-` |
+| **xAI** (Grok) | Paid | [console.x.ai](https://console.x.ai) | `xai-` |
+
+### Get a free Groq key (about 2 minutes)
+
+1. Open [console.groq.com/keys](https://console.groq.com/keys) and sign in with Google, GitHub or your email.
+2. Click **Create API Key**, give it any name (for example `GitaViswa`) and confirm.
+3. Copy the key, which starts with `gsk_`. It is shown only once. If you lose it, delete it and create a new one.
+
+For **OpenRouter**, sign in at [openrouter.ai](https://openrouter.ai), open [openrouter.ai/keys](https://openrouter.ai/keys), create a key and copy it. Then, in GitaViśva, pick one of the models listed under **Free models**.
+
+For **Ollama**, install it from [ollama.com/download](https://ollama.com/download), run `ollama pull llama3.1` in a terminal, then choose **Local Ollama** in GitaViśva.
+
+### Paste the key into GitaViśva
+
+1. Click the gear icon at the top right. Settings opens on **Language model**.
+2. Under **Provider**, choose the service (for example **Groq**).
+3. Paste your key into **API key**.
+4. Click **Test connection**, then **Save and use**.
+
+The key is saved in this browser. If you use another browser or device, paste it there too. (If you run GitaViśva with `npm run dev`, it is also written to a file named `.env.local` in the project folder. You can also create that file yourself: copy `.env.example` to `.env.local` and put your key after `GROQ_API_KEY=`.)
+
+### Keep your key safe
+
+- Treat it like a password: don't share it or post it online.
+- If you think someone else has it, delete it on the service's website and create a new one.
+- On paid services, set a monthly spending limit in the service's billing settings.
+- On a public copy of GitaViśva, your key stays in your browser. Each time you ask something it is sent over HTTPS to that site's server, which passes it to the AI service and does not store it.
+
+## Put it online
+
+This section is for anyone hosting a public copy of GitaViśva.
+
+### Recommended: Vercel
+
+[Vercel](https://vercel.com) makes Next.js, the framework GitaViśva is built on, so it runs the app without changes. It builds the app on its own servers, serves the files from a worldwide network with HTTPS, redeploys every time you push to GitHub, and can roll back to any earlier version in one click.
+
+1. **Put the code on GitHub** under your personal account. Vercel's free plan can't connect to repositories owned by a GitHub organisation. Create an empty repository on GitHub, then in the project folder run:
+
+   ```bash
+   git remote add origin https://github.com/<your-account>/<repository>.git
+   git push -u origin main
+   ```
+
+2. **Sign up** at [vercel.com](https://vercel.com) with your GitHub account and choose the **Hobby** plan.
+3. Choose **Add New → Project** and import the repository. Vercel detects Next.js; leave the build settings as they are.
+4. Under **Environment Variables**, optionally add `ONNXRUNTIME_NODE_INSTALL` with the value `skip`. This skips downloading a GPU library the site never uses, so builds are faster. **Do not add any API keys** (see below).
+5. Click **Deploy**. A few minutes later the site is live at `https://<project>.vercel.app`.
+6. Optionally, connect your own domain under **Settings → Domains**. Link previews pick it up automatically.
+
+**Visitors bring their own keys.** Keys in the server's environment (`.env`, `.env.local` or the host's settings) are used only for requests made on the server's own machine, so visitors can never spend yours, even if you add one by mistake. If you deliberately want every visitor to use your key, set `GITAVISWA_SHARE_SERVER_KEYS=true`; all visitors then share that key's rate limits, and you pay for their use.
+
+### How much traffic it handles
+
+The graph, search, retrieval and your saved thoughts all run in the visitor's browser, and the AI answer is paid for by the visitor's own key, so the server mostly sends files and relays answers. A first visit downloads about 2 MB in about 40 requests. Returning visitors load almost everything from the offline cache. These are estimates for new visitors:
+
+| New visitors per day | Vercel plan | Cost |
+| --- | --- | --- |
+| Up to about 800 | Hobby (1M requests and 100 GB a month) | Free |
+| Up to about 8,000 | Pro (10M requests and 1 TB a month) | $20 a month |
+| About 10,000 | Pro, plus extra requests at $2 per million | About $25 a month |
+
+- The Hobby plan is for **non-commercial use only**. Asking for donations is allowed; ads and paid features are not.
+- If a Hobby project keeps going over its allowance, Vercel can pause it, and visitors see an error until you upgrade. While traffic grows, check **Usage** in the Vercel dashboard each week, and move to Pro before you reach the limit.
+- Recitations stream from holy-bhagavad-gita.org and archive.org, not from your host. If those sites are slow or unavailable, GitaViśva falls back to the device's own voice.
+
+### Updating the live site
+
+- Push to `main` and Vercel redeploys. Visitors get the new version on their next visit.
+- If you change files in `public/data/` or `public/images/`, also change `VERSION` in `public/sw.js` (for example, from `gitaviswa-v2` to `gitaviswa-v3`). Visitors' browsers keep those files for offline use and fetch new copies only when that name changes.
+
+### Other hosts
+
+Any host that runs Node.js 20 or newer works: run `npm install`, `npm run build` and `npm start`. The app listens on port 3000, or on the port set in `PORT`. Set `NEXT_PUBLIC_SITE_URL` to the site's address so link previews work. Put a CDN such as Cloudflare in front to cache `/_next/static`, `/data` and `/images`. Avoid free plans that put the app to sleep when it is idle, because the first visitor after a pause then waits up to a minute.
+
+## For developers
 
 ```bash
 npm install          # Node ≥ 20 (developed on Node 26)
 npm run data         # download open data → compile & verify the graph, then precompute the 3D layout
 npm run dev          # http://localhost:3000
-npm test             # behavioural checks for saving, migration, search and Ask rules
+npm test             # behavioural checks for saving, migration, search, Ask rules and key handling
 ```
 
 Optional:
@@ -61,7 +212,7 @@ npm run data:verify       # re-run integrity checks on public/data
 cp .env.example .env.local   # or use Settings (gear icon, top right) in the app
 ```
 
-`npm run data` is idempotent. Sources are cached in `.cache/sources/`, so later runs (or `npm run data:offline`) need no network. The compiled artefacts in `public/data/` are committed-ready, so a fresh clone can skip straight to `npm run dev`.
+`npm run data` is idempotent. Sources are cached in `.cache/sources/`, so later runs (or `npm run data:offline`) need no network. The compiled artefacts in `public/data/` are committed, so a fresh clone can skip straight to `npm run dev`.
 
 ## Works with zero keys, fully offline
 
@@ -151,7 +302,7 @@ Measured on the dev server: BM25 search takes 0.3–2 ms and full retrieval 7–
 
 Open **Settings** (the gear icon in the top bar; its dot shows whether a model is connected) and choose **Language model**.
 
-- **Detected automatically:** keys in `.env.local`, `.env` or the environment show a green **"Connected via .env"** badge (masked, e.g. `gsk_…abcd`). You never type them.
+- **Detected automatically:** keys in `.env.local`, `.env` or the environment show a green **"Connected via .env"** badge (masked, e.g. `gsk_…abcd`) when the app is opened on the same machine. You never type them.
 - **Saved twice:** a key entered in the modal is stored in `localStorage` and POSTed to `/api/settings/env`, which upserts `.env.local` (preserving other lines, written atomically) and updates `process.env` live. It survives restarts and cleared browsers.
 - **Providers:** Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), OpenRouter (one-click **free** presets: `meta-llama/llama-3.3-70b-instruct:free`, `google/gemma-3-27b-it:free`, `deepseek/deepseek-r1:free`), xAI (`grok-2-latest`), OpenAI (`gpt-4o-mini` / `gpt-4o`), and local **Ollama** (`http://localhost:11434`). Any model id can be typed; the modal lists the models your key can actually use (live from the provider's `/models`), flags unavailable ones, and **Test** does a live round-trip.
 - **Retired models never strand you:** providers retire models (Groq dropped the Llama 3.x line in 2026). If the configured model is gone, the server picks the best available one, remembers the substitution, reports it in an `X-GitaViswa-Model-Fallback` header, and the companion shows a note and adopts the working model in the browser.
@@ -159,6 +310,7 @@ Open **Settings** (the gear icon in the top bar; its dot shows whether a model i
   - Writes only from loopback with a same-origin `Origin` header (CSRF guard), and only in `next dev` unless `GITAVISWA_ALLOW_ENV_WRITE=true`.
   - Only whitelisted variable names are accepted, and values with whitespace, quotes or `$` are refused (no newline injection). Keys are never returned to the browser.
   - Custom LLM base URLs and Neo4j credentials are honoured only for local requests, so a deployment cannot be used as an open relay.
+  - Keys in the server's environment serve only local requests, so a deployment's visitors neither see nor spend them. `GITAVISWA_SHARE_SERVER_KEYS=true` deliberately shares them with every visitor.
   - `.gitignore` excludes `.env` and `.env.local`; `.env.example` is provided.
 
 ## Audio, scripts and languages
@@ -183,7 +335,7 @@ MATCH (v:Verse)-[:HEALS]->(:Emotion {id:'emotion:bhaya'}), (v)-[:DEFINES_CONCEPT
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/chat` | Streaming completion for `{mode: chat \| bridge \| translate \| analyze, provider, model?, question, context?, history?}`. The key comes from the `x-gitaviswa-key` header (BYOK) or `.env`. Without `context`, retrieval runs server-side. Errors return JSON `{error, code}`. |
+| `POST /api/chat` | Streaming completion for `{mode: chat \| bridge \| translate \| analyze, provider, model?, question, context?, history?}`. The key comes from the `x-gitaviswa-key` header (BYOK) or, for local requests, `.env`. Without `context`, retrieval runs server-side. Errors return JSON `{error, code}`. |
 | `GET /api/graphrag?q=` | Keyless retrieval: ranked nodes, subgraph size, LLM-ready context and the offline answer. |
 | `GET/POST/DELETE /api/settings/env` | Provider status (masked), write or remove keys in `.env.local`. |
 | `POST /api/settings/test` | Live provider round-trip. |
