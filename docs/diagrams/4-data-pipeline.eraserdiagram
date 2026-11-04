@@ -1,0 +1,51 @@
+// GitaViśva · how the knowledge graph is built (npm run data)
+// Eraser: Diagram as code → type "Flow chart"
+direction right
+colorMode pastel
+styleMode shadow
+typeface clean
+
+Sources [icon: globe, color: gray] {
+  Primary [icon: github, label: "gita/gita on GitHub"]
+  Mirrors [icon: copy, label: "jsDelivr · praneshp1org mirror"]
+  Per verse [icon: book, label: "vedicscriptures · per-śloka files"]
+}
+
+Fetch [icon: download, color: orange, label: "Resilient fetch · gzip · 16 ranged streams · resumable"]
+Cache [shape: cylinder, icon: hard-drive, color: gray, label: ".cache/sources"]
+
+Compile [icon: cpu, color: orange, label: "Compile"] {
+  Clean [icon: scissors, label: "Clean · speaker headings · encoding fixes · daṇḍas"]
+  Linguistics [icon: type, label: "IAST · guru-laghu chandas · padaccheda"]
+  Speakers [icon: users, label: "Speakers · uvāca carried forward"]
+  Ontology [icon: tag, label: "Ontology match · sandhi-aware patterns"]
+  Curated [icon: edit-3, label: "Curated · 20 dialogues · 10 chains · 14 threads · 44 antidotes"]
+}
+
+Gate [shape: diamond, icon: shield, color: yellow, label: "Integrity gate · 84 anchors · counts · no dangling edges"]
+Stop [shape: oval, color: red, label: "Stop · write nothing"]
+
+Outputs [icon: folder, color: green, label: "public/data"] {
+  Verses [shape: document, label: "gita-verses.json"]
+  Graph [shape: document, label: "gita-graph.json · 857 nodes · 5,350 edges"]
+  Cypher [shape: document, label: "gita-cypher-seed.cypher"]
+  Commentary [shape: document, label: "commentary · 701 files"]
+  Layout [shape: document, label: "gita-layout.json"]
+  Vectors [shape: document, label: "gita-embeddings.json · optional"]
+}
+
+Extras [icon: plus-circle, color: orange, label: "Commentary extras · Śaṅkara · Rāmānuja · Abhinavagupta"]
+Layout step [icon: grid, color: orange, label: "3D layout precompute"]
+Embed step [icon: layers, color: orange, label: "MiniLM embeddings"]
+Neo4j [shape: cylinder, icon: database, color: blue, label: "Neo4j · optional"]
+
+Primary, Mirrors, Per verse > Fetch
+Fetch <> Cache
+Fetch > Clean > Linguistics > Speakers > Ontology > Curated > Gate
+Gate > Verses, Graph, Cypher, Commentary: all checks pass
+Gate > Stop: any check fails
+Per verse > Extras
+Extras > Commentary: fills gaps · adds translations
+Graph > Layout step > Layout
+Verses, Graph > Embed step > Vectors
+Cypher --> Neo4j: one-click sync

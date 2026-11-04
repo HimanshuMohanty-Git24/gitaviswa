@@ -1,0 +1,29 @@
+// GitaViśva · what happens when you Ask
+// Eraser: Diagram as code → type "Sequence"
+typeface clean
+autoNumber on
+
+You [icon: user, color: orange] > Ask panel [icon: message-circle, color: blue]: I feel overwhelmed by expectations at work
+Ask panel > Safety check [icon: shield, color: red]: look for crisis language
+opt [label: crisis language found] {
+  Safety check > You: helplines first · Tele-MANAS 14416
+}
+Ask panel > Router [icon: compass, color: blue]: map everyday words to states · situations · concepts · verse numbers
+Router > Search index [icon: search, color: blue, label: "Orama search"]: BM25 and vectors over verses and entities
+Search index > Graph engine [icon: share-2, color: blue, label: "graphology"]: seed nodes
+activate Graph engine
+Graph engine > Graph engine: two-hop traversal weighted by relationship
+Graph engine > Ranker [icon: bar-chart-2, color: blue]: candidate verses · concepts · states
+deactivate Graph engine
+Ranker > Ask panel: top verses · causal chains · dialogues · induced subgraph
+Ask panel > Explore 3D [icon: globe, color: blue]: light up the subgraph
+alt [label: a model is connected] {
+  Ask panel > Chat relay [icon: server, color: purple, label: "/api/chat on Vercel"]: question · subgraph context · your own key
+  Chat relay > LLM [icon: cpu, color: red, label: "Groq · OpenRouter · OpenAI"]: answer only from this context and cite it
+  LLM --> Chat relay: streamed tokens
+  Chat relay --> Ask panel: streamed answer
+}
+else [label: no key] {
+  Ask panel > Ask panel: compose the answer from the graph itself
+}
+Ask panel > You: answer with clickable verse citations

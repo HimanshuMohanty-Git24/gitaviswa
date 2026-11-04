@@ -4,3 +4,4 @@
 .next-verify
 *.tsbuildinfo
 audit
+docs

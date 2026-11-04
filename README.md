@@ -1,21 +1,67 @@
 <div align="center">
 
+<img src="public/favicon.svg" width="76" alt="" />
+
 # GitaViśva · गीताविश्व
 
-**The Śrīmad Bhagavad Gītā as a living knowledge graph.**
-A 3D cosmic graph of all 700 verses, a 2D lineage manuscript, a synchronised recitation reader,
-a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-mapper (*Manas-Darpaṇa*).
+**The Bhagavad Gita as a living knowledge graph.**
 
-**[Open GitaViśva → gitaviswa.vercel.app](https://gitaviswa.vercel.app)**
+Explore all 701 verses in 3D, follow how one idea leads to another, read 20 commentaries from six traditions side by side,<br />
+listen to the chant, and ask questions that are answered from the text itself.
 
-`Next.js 15` · `graphology` · `Orama` · `react-force-graph-3d` · `React Flow` · `Zustand + IndexedDB` · `BYOK: Groq · OpenRouter · xAI · OpenAI · Ollama`
+[**Open GitaViśva**](https://gitaviswa.vercel.app) &nbsp;·&nbsp; [Run it on your computer](#run-it-on-your-own-computer) &nbsp;·&nbsp; [Get a free API key](#connect-a-language-model) &nbsp;·&nbsp; [How it works](#architecture)
+
+[![Live site](https://img.shields.io/badge/live-gitaviswa.vercel.app-e8a34a?style=flat-square)](https://gitaviswa.vercel.app)
+![Next.js 15](https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=nextdotjs)
+![Works offline](https://img.shields.io/badge/works-offline-2f9e74?style=flat-square)
+![Bring your own key](https://img.shields.io/badge/AI-bring%20your%20own%20key-6b5bd6?style=flat-square)
+![MIT licence](https://img.shields.io/badge/licence-MIT-555?style=flat-square)
+
+<a href="https://gitaviswa.vercel.app"><img src="docs/screenshots/home.webp" width="100%" alt="GitaViśva home page: Krishna and Arjuna's chariot at sunset beside the words 'Before the battle, a conversation.'" /></a>
 
 </div>
+
+## A quick tour
+
+### Explore: the whole Gita as one graph
+
+<img src="docs/screenshots/explore-3d.webp" width="100%" alt="The 3D graph: the 18 chapters as amber hubs on a ring, verses clustered around them, and concepts, states of mind and life situations in the centre." />
+
+The 18 chapters are the amber hubs, each surrounded by its verses. Concepts, states of mind and life situations sit in the middle, where the teaching connects. Click any point to light up everything it touches, or find the path between two ideas.
+
+### Ask: answers that show where they come from
+
+<img src="docs/screenshots/ask.webp" width="100%" alt="Ask: an answer to 'I feel overwhelmed by expectations at work' beside the graph, with the 18 verses and ideas it drew on highlighted." />
+
+Ask in your own words. GitaViśva finds the verses and ideas that fit, lights them up in the graph, and, if you connect a free API key, writes an answer that cites them. Without a key it answers from the graph alone.
+
+### Lineage: what leads to a verse and what follows
+
+<img src="docs/screenshots/lineage.webp" width="100%" alt="Lineage of BG 2.47: who speaks it, the fear it answers, the verses that echo it, the states it heals and the concepts it defines, with the verse in Devanagari, IAST and word by word." />
+
+Who speaks a verse and to whom, the dilemma it answers, the verses that echo it, the states of mind it heals and the concepts it defines, with Devanagari, IAST and word-by-word meanings alongside.
+
+### Read: one verse, many readings
+
+<img src="docs/screenshots/commentaries.webp" width="100%" alt="The reader on chapter 2 with BG 2.47 open: 19 commentaries from six traditions, filterable by language and school." />
+
+Read chapter by chapter in Devanagari, IAST or seven regional scripts. Every verse opens commentaries from six traditions (Advaita, Viśiṣṭādvaita, Dvaita, Śuddhādvaita, Kashmir Śaiva and modern teachers) in English, Hindi and Sanskrit. Compare up to four side by side, or follow a single word through all of them.
+
+### On your phone
+
+<p align="center">
+  <img src="docs/screenshots/phone-home.webp" width="270" alt="The home page on a phone." />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/phone-read.webp" width="270" alt="The reader on a phone, chapter 2 in Devanagari." />
+</p>
+
+Your thoughts in **Reflect** stay on your device. Everything except AI-written answers works without an account, a key or, once visited, an internet connection.
 
 ---
 
 ## Contents
 
+- [A quick tour](#a-quick-tour)
 - [What it is](#what-it-is)
 - [Run it on your own computer](#run-it-on-your-own-computer) (step by step, no coding needed)
 - [Connect a language model](#connect-a-language-model) (optional: where to get a free API key)
@@ -171,6 +217,8 @@ This section is for anyone hosting a public copy of GitaViśva.
 
 **Visitors bring their own keys.** Keys in the server's environment (`.env`, `.env.local` or the host's settings) are used only for requests made on the server's own machine, so visitors can never spend yours, even if you add one by mistake. If you deliberately want every visitor to use your key, set `GITAVISWA_SHARE_SERVER_KEYS=true`; all visitors then share that key's rate limits, and you pay for their use.
 
+**Visitor counts.** The public site counts page views with [Vercel Web Analytics](https://vercel.com/docs/analytics), which uses no cookies and collects no personal data. It runs only on Vercel deployments, so a copy you run on your own computer sends nothing. To turn it on for your own deployment, open the project's **Analytics** tab in Vercel and click **Enable**. The free Hobby plan counts 50,000 page views a month (about 1,600 a day). Past that, counting pauses until the next month, and the site itself keeps working.
+
 ### How much traffic it handles
 
 The graph, search, retrieval and your saved thoughts all run in the visitor's browser, and the AI answer is paid for by the visitor's own key, so the server mostly sends files and relays answers. A first visit downloads about 2 MB in about 40 requests. Returning visitors load almost everything from the offline cache. These are estimates for new visitors:
@@ -219,31 +267,35 @@ With no API key, everything except LLM-written prose still works: the 2D/3D grap
 
 ## Architecture
 
+Editable sources for the detailed diagrams (system, knowledge graph, what happens when you ask, and how the graph is built) are in [`docs/diagrams/`](docs/diagrams/). Paste one into [eraser.io](https://www.eraser.io) (Diagram as code) to view or change it.
+
 ```mermaid
 flowchart LR
   subgraph Build["scripts/ (Node, build time)"]
-    S1[gita/gita · mirrors · vedicscriptures] -->|parallel ranged, resumable| C[.cache/sources]
-    A1[archive.org chapter audio] --> C
-    C --> K[build-gita-knowledge-graph.mjs<br/>clean · IAST · chandas · speakers ·<br/>ontology · curated layers · 84 anchors · integrity]
-    K --> V[gita-verses.json]
-    K --> G[gita-graph.json]
-    K --> Q[gita-cypher-seed.cypher]
-    K --> CM[commentary/BG_c.v.json ×701]
-    V & G --> E[build-embeddings.mjs] --> EM[gita-embeddings.json]
+    S1["gita/gita · mirrors · vedicscriptures"] -->|"parallel ranged, resumable"| C[".cache/sources"]
+    A1["archive.org chapter audio"] --> C
+    C --> K["build-gita-knowledge-graph.mjs<br/>clean · IAST · chandas · speakers ·<br/>ontology · curated layers · 84 anchors · integrity"]
+    K --> V["gita-verses.json"]
+    K --> G["gita-graph.json"]
+    K --> Q["gita-cypher-seed.cypher"]
+    K --> CM["commentary/BG_c.v.json ×701"]
+    CM --> CX["build-commentary-extras.mjs"]
+    G --> L["build-layout.mjs → gita-layout.json"]
+    V & G --> E["build-embeddings.mjs"] --> EM["gita-embeddings.json"]
   end
   subgraph Browser["Browser (zero-latency)"]
-    V & G --> ST[Zustand store]
-    ST --> GR[graphology MultiDirectedGraph<br/>+ weighted undirected projection]
-    ST --> OR[Orama BM25 / hybrid index]
-    GR & OR --> RAG[GraphRAG engine<br/>route → search → 2-hop → rank → subgraph]
-    RAG --> UI3[CosmicGraph3D] & UI2[LineageGraph2D] & CH[Pārtha-Sārathi] & MD[Manas-Darpaṇa]
-    MD <--> IDB[(IndexedDB)]
+    V & G --> ST["Zustand store"]
+    ST --> GR["graphology MultiDirectedGraph<br/>+ weighted undirected projection"]
+    ST --> OR["Orama BM25 / hybrid index"]
+    GR & OR --> RAG["GraphRAG engine<br/>route → search → 2-hop → rank → subgraph"]
+    RAG --> UI3["CosmicGraph3D"] & UI2["LineageGraph2D"] & CH["Pārtha-Sārathi"] & MD["Manas-Darpaṇa"]
+    MD <--> IDB[("IndexedDB")]
   end
-  subgraph Server["Next.js route handlers"]
-    CH -->|context + BYOK key| API[/api/chat] --> P[Groq · OpenRouter · xAI · OpenAI · Ollama]
-    SET[/api/settings/env] <--> ENV[(.env.local)]
-    EMB[/api/embed] --> TF[transformers.js · MiniLM]
-    NEO[/api/neo4j] --> N4J[(Neo4j)]
+  subgraph Server["Next.js route handlers (Vercel functions)"]
+    CH -->|"context + BYOK key"| API["/api/chat"] --> P["Groq · OpenRouter · xAI · OpenAI · Ollama"]
+    SET["/api/settings/env"] <--> ENV[(".env.local")]
+    EMB["/api/embed"] --> TF["transformers.js · MiniLM"]
+    NEO["/api/neo4j"] --> N4J[("Neo4j")]
   end
 ```
 
@@ -347,6 +399,7 @@ Deep links: `/?view=darshana&node=BG_2.47`, `/?view=adhyayana&chapter=2`, `/?ask
 ## Project structure
 
 ```text
+docs/                   screenshots/ (used by this README) · diagrams/ (eraser.io sources)
 public/data/            gita-verses.json · gita-graph.json · gita-cypher-seed.cypher · commentary/ · (gita-embeddings.json)
 public/sw.js            offline service worker
 scripts/

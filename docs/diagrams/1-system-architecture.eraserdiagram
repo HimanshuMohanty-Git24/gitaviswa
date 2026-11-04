@@ -1,0 +1,79 @@
+// GitaViśva · how the whole system fits together
+// Eraser: Diagram as code → type "Cloud architecture"
+direction right
+colorMode pastel
+styleMode shadow
+typeface clean
+
+Open sources [icon: globe, color: gray] {
+  Gita dataset [icon: book-open, label: "gita/gita · text, translations, commentaries"]
+  Vedic scriptures [icon: book, label: "vedicscriptures · classical commentaries in English and Hindi"]
+  Chapter audio [icon: headphones, label: "archive.org · chapter recitations"]
+  Verse audio [icon: headphones, label: "holy-bhagavad-gita.org · per-verse chant"]
+}
+
+Build time [icon: terminal, color: orange] {
+  Resilient fetch [icon: download, label: "Resilient fetch · mirrors · 16 ranged streams · cache"]
+  Graph compiler [icon: cpu, label: "Graph compiler · clean · IAST · chandas · speakers · ontology"]
+  Curated layers [icon: edit-3, label: "Curated layers · dialogues · causal chains · sutra threads · antidotes"]
+  Integrity gate [icon: shield, label: "Integrity gate · 84 textual anchors · no dangling edges"]
+  Layout precompute [icon: grid, label: "3D layout precompute"]
+  Embeddings [icon: layers, label: "MiniLM sentence vectors (optional)"]
+}
+
+Vercel [icon: cloud, color: gray] {
+  CDN [icon: globe, color: green] {
+    Static data [icon: file-text, label: "verses · graph · layout · 701 commentary files"]
+    App shell [icon: package, label: "Next.js app shell"]
+  }
+  Functions [icon: server, color: purple] {
+    Chat relay [icon: message-circle, label: "/api/chat · streams the answer"]
+    Graph API [icon: share-2, label: "/api/graphrag · keyless retrieval"]
+    Settings API [icon: settings, label: "/api/settings · models and test"]
+  }
+}
+
+Browser [icon: monitor, color: blue] {
+  Store [icon: database, label: "Zustand store"]
+  Graph engine [icon: share-2, label: "graphology · weighted graph · Dijkstra · Louvain"]
+  Search index [icon: search, label: "Orama · BM25 + vector hybrid"]
+  GraphRAG engine [icon: zap, label: "GraphRAG · route · search · 2-hop · rank · subgraph"]
+  Views [icon: layout, color: blue] {
+    Explore 3D [icon: globe, label: "Explore · 3D graph"]
+    Lineage 2D [icon: git-branch, label: "Lineage · 2D diagram"]
+    Read [icon: book-open, label: "Read · scripts · commentaries"]
+    Ask [icon: message-circle, label: "Ask · Pārtha-Sārathi"]
+    Reflect [icon: edit, label: "Reflect · private journal"]
+  }
+  Journal store [icon: lock, label: "IndexedDB · thoughts never leave the device"]
+  Offline cache [icon: wifi-off, label: "Service worker · works offline"]
+}
+
+LLM providers [icon: cpu, color: red] {
+  Groq [icon: zap]
+  OpenRouter [icon: shuffle]
+  OpenAI [icon: aperture]
+  xAI [icon: x-circle]
+  Ollama [icon: home, label: "Ollama · local"]
+}
+
+Gita dataset, Vedic scriptures > Resilient fetch
+Resilient fetch > Graph compiler > Curated layers > Integrity gate
+Integrity gate > Static data: writes JSON
+Integrity gate > Layout precompute, Embeddings
+Layout precompute, Embeddings > Static data
+Static data > Store: fetched once
+Static data > Offline cache: cached
+App shell > Views
+Store > Graph engine, Search index
+Graph engine, Search index > GraphRAG engine
+GraphRAG engine > Views: lights up the subgraph
+GraphRAG engine > Chat relay: context + your own key
+Chat relay > LLM providers: streamed answer
+Reflect <> Journal store
+Chapter audio, Verse audio --> Read: recitation
+
+legend [position: bottom-left] {
+  [connection: >, label: "data or request"]
+  [connection: -->, label: "streamed from a third party"]
+}

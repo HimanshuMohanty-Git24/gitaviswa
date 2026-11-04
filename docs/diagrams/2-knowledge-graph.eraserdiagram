@@ -1,0 +1,41 @@
+// GitaViśva · the knowledge graph: 857 nodes, 5,350 relationships
+// Eraser: Diagram as code → type "Flow chart"
+direction down
+colorMode pastel
+styleMode shadow
+typeface clean
+
+Public knowledge graph [icon: share-2, color: gray, label: "Public knowledge graph · 857 nodes · 5,350 relationships"] {
+  Chapter [shape: hexagon, icon: book, color: orange, label: "Chapter · 18"]
+  Verse [shape: document, icon: file-text, color: yellow, label: "Verse · 701"]
+  Next verse [shape: document, icon: file-text, color: yellow, label: "Another verse"]
+  Character [shape: oval, icon: user, color: gray, label: "Character · 16"]
+  Concept [shape: ellipse, icon: sun, color: blue, label: "Sanskrit concept · 67"]
+  Mental state [shape: ellipse, icon: heart, color: red, label: "Mental state · 33 · 22 afflictive · 11 healing"]
+  Next state [shape: ellipse, icon: heart, color: red, label: "Another mental state"]
+  Life situation [shape: diamond, icon: help-circle, color: purple, label: "Life situation · 22"]
+}
+
+Your device [icon: lock, color: green, label: "Your device only"] {
+  Thought [shape: oval, icon: edit, color: green, label: "Your thought · IndexedDB"]
+}
+
+Verse > Chapter: BELONGS_TO 701
+Character > Verse: SPOKE 701 · NARRATED 10
+Verse > Character: MENTIONS_CHARACTER 229
+Verse > Next verse: NEXT_VERSE 700 · ANSWERS_QUESTION_IN 197 · ECHOES_VERSE 64 · CULMINATES_IN 63
+Chapter > Concept: EXPOUNDS 64
+Verse > Concept: MENTIONS_CONCEPT 1221 · DEFINES_CONCEPT 359
+Verse > Mental state: MENTIONS 403 · DEPICTS 92 · HEALS 115 · CULTIVATES 67
+Verse > Life situation: ADDRESSES_DILEMMA 150
+Life situation > Concept: RESOLVED_THROUGH 65
+Life situation > Mental state: EVOKES_STATE 51
+Concept > Mental state: ANTIDOTE_TO 32 · CAUSES_STATE 8
+Mental state > Next state: CAUSES_STATE 16 · ANTIDOTE_TO 12
+Thought --> Verse, Concept, Mental state: CONNECTS_TO · ASKS_ABOUT · REMINDS_OF
+
+legend [position: bottom-right] {
+  [connection: >, label: "relationship · count"]
+  [connection: -->, label: "private link you chose to keep"]
+  [color: red, label: "afflictive and healing states"]
+}
