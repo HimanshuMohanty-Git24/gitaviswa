@@ -6,6 +6,8 @@
 A 3D cosmic graph of all 700 verses, a 2D lineage manuscript, a synchronised recitation reader,
 a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-mapper (*Manas-Darpaṇa*).
 
+**[Open GitaViśva → gitaviswa.vercel.app](https://gitaviswa.vercel.app)**
+
 `Next.js 15` · `graphology` · `Orama` · `react-force-graph-3d` · `React Flow` · `Zustand + IndexedDB` · `BYOK: Groq · OpenRouter · xAI · OpenAI · Ollama`
 
 </div>
@@ -49,6 +51,8 @@ a hybrid GraphRAG companion (*Pārtha-Sārathi*) and a private, offline mind-map
 
 ## Run it on your own computer
 
+Just want to use it? Open **[gitaviswa.vercel.app](https://gitaviswa.vercel.app)**. There is nothing to install. The steps below are for running your own copy on your computer.
+
 You don't need to know how to code. It takes about 15 minutes, most of it waiting for downloads. You need a Windows, macOS or Linux computer, about 2 GB of free disk space and an internet connection for the first setup. After that, GitaViśva runs on your computer and most of it works offline.
 
 ### 1. Install Node.js (once)
@@ -57,8 +61,8 @@ Node.js is the free program that runs GitaViśva. Go to [nodejs.org](https://nod
 
 ### 2. Download GitaViśva (once)
 
-- **Easiest:** on this project's GitHub page, click the green **Code** button, then **Download ZIP**. Unzip it somewhere easy to find, such as your Documents folder.
-- **With Git:** run `git clone <repository-url>`, using the address shown under the green **Code** button. With Git, getting updates later takes one command.
+- **Easiest:** on [this project's GitHub page](https://github.com/HimanshuMohanty-Git24/gitaviswa), click the green **Code** button, then **Download ZIP**. Unzip it somewhere easy to find, such as your Documents folder.
+- **With Git:** run `git clone https://github.com/HimanshuMohanty-Git24/gitaviswa.git`. With Git, getting updates later takes one command.
 
 ### 3. Open a terminal in the GitaViśva folder
 
@@ -157,12 +161,7 @@ This section is for anyone hosting a public copy of GitaViśva.
 
 [Vercel](https://vercel.com) makes Next.js, the framework GitaViśva is built on, so it runs the app without changes. It builds the app on its own servers, serves the files from a worldwide network with HTTPS, redeploys every time you push to GitHub, and can roll back to any earlier version in one click.
 
-1. **Put the code on GitHub** under your personal account. Vercel's free plan can't connect to repositories owned by a GitHub organisation. Create an empty repository on GitHub, then in the project folder run:
-
-   ```bash
-   git remote add origin https://github.com/<your-account>/<repository>.git
-   git push -u origin main
-   ```
+1. **Fork this repository** to your personal GitHub account with the **Fork** button at the top of [its GitHub page](https://github.com/HimanshuMohanty-Git24/gitaviswa). Vercel's free plan can't connect to repositories owned by a GitHub organisation.
 
 2. **Sign up** at [vercel.com](https://vercel.com) with your GitHub account and choose the **Hobby** plan.
 3. Choose **Add New → Project** and import the repository. Vercel detects Next.js; leave the build settings as they are.

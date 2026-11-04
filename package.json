@@ -4,6 +4,12 @@
   "private": true,
   "description": "GitaViswa (गीताविश्व) — an interactive knowledge graph, hybrid GraphRAG companion and personal mind mapper for the Bhagavad Gita.",
   "license": "MIT",
+  "homepage": "https://gitaviswa.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HimanshuMohanty-Git24/gitaviswa.git"
+  },
+  "bugs": "https://github.com/HimanshuMohanty-Git24/gitaviswa/issues",
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
