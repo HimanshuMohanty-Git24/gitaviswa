@@ -34,3 +34,5 @@ yarn-error.log*
 Thumbs.db
 *.pem
 .vercel
+
+videos/
