@@ -94,6 +94,28 @@ export function setCommentaryAfter(authorId: number | null) {
   } catch {}
 }
 
+/** Ranges on holy-bhagavad-gita.org where multiple verses share a single composite recitation. */
+const VERSE_AUDIO_RANGES: [number, number, number][] = [
+  [1, 4, 6], [1, 16, 18], [1, 21, 22], [1, 29, 31], [1, 32, 33],
+  [1, 34, 35], [1, 36, 37], [1, 38, 39], [1, 45, 46], [2, 42, 43],
+  [3, 1, 2], [3, 20, 21], [4, 29, 30], [5, 8, 9], [5, 27, 28],
+  [6, 12, 13], [6, 24, 25], [6, 41, 42], [8, 1, 2], [8, 9, 10],
+  [8, 23, 26], [9, 7, 8], [9, 16, 17], [10, 4, 5], [10, 12, 13],
+  [10, 16, 17], [11, 10, 11], [11, 26, 27], [11, 28, 29], [11, 41, 42],
+  [11, 52, 53], [12, 3, 4], [12, 6, 7], [12, 13, 14], [12, 18, 19],
+  [13, 8, 12], [14, 3, 4], [14, 11, 13], [14, 14, 15], [14, 22, 23],
+  [14, 24, 25], [15, 3, 4], [16, 1, 3], [16, 13, 15], [16, 19, 20],
+  [17, 5, 6], [17, 26, 27], [18, 15, 16], [18, 51, 53],
+];
+
+export function resolveVerseAudio(c: number, v: number, candidate?: string): string {
+  const match = VERSE_AUDIO_RANGES.find(([ch, start, end]) => ch === c && v >= start && v <= end);
+  if (match) {
+    return `https://www.holy-bhagavad-gita.org/media/audios/${String(c).padStart(3, '0')}_${String(match[1]).padStart(3, '0')}-${String(match[2]).padStart(3, '0')}.mp3`;
+  }
+  return candidate || `https://www.holy-bhagavad-gita.org/media/audios/${String(c).padStart(3, '0')}_${String(v).padStart(3, '0')}.mp3`;
+}
+
 class AudioEngine {
   private el: HTMLAudioElement | null = null;
   private chapterSourceIdx = 0;
@@ -222,7 +244,7 @@ class AudioEngine {
     const ch = g.versesDoc?.chapters.find((c) => c.number === v.chapter);
     set({ verseId: id, chapter: v.chapter, mode: "verse", loading: true, error: undefined, source: "recitation", sourceLabel: "holy-bhagavad-gita.org", approx: false, currentTime: 0, duration: 0 });
     const el = this.ensure();
-    el.src = v.audio.verse[0];
+    el.src = resolveVerseAudio(v.chapter, v.verse, v.audio.verse[0]);
     el.playbackRate = st().rate;
     el.play().catch(() => this.speak(id));
     this.meta(`BG ${v.ref}`, ch ? `Chapter ${ch.number} · ${ch.title}` : "");
@@ -369,6 +391,21 @@ class AudioEngine {
     // Commentary after each verse: read it, then afterCommentary() continues.
     if (s.mode === "verse" && s.commentaryAfter && s.verseId && s.source !== "commentary") return void this.readCommentary(s.verseId, s.commentaryAfter, { thenNext: true });
     if (!s.autoAdvance) return set({ playing: false });
+    // When a composite verse recitation ends, advance past the other verses that share the exact same audio
+    const verses = useGita.getState().versesDoc?.verses;
+    if (s.mode === "verse" && verses && s.verseId && s.source === "recitation") {
+      const curV = verses.find((v) => v.id === s.verseId);
+      const curSrc = this.el?.src || (curV ? resolveVerseAudio(curV.chapter, curV.verse, curV.audio.verse[0]) : null);
+      if (curSrc) {
+        let i = verses.findIndex((v) => v.id === s.verseId);
+        while (i + 1 < verses.length && resolveVerseAudio(verses[i + 1].chapter, verses[i + 1].verse, verses[i + 1].audio.verse[0]) === curSrc) {
+          i++;
+        }
+        const nextV = verses[i + 1];
+        if (nextV) return this.playVerse(nextV.id);
+        return set({ playing: false });
+      }
+    }
     this.next();
   }
 
