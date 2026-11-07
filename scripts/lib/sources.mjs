@@ -28,10 +28,30 @@ export const VEDIC_SCRIPTURES_SLOK = (c, v) => [
   `https://vedicscriptures.github.io/slok/${c}/${v}/`,
 ];
 
-// Per-verse Sanskrit recitation (Swami Mukundananda's holy-bhagavad-gita.org, same 701-verse numbering).
-export const VERSE_AUDIO = (c, v) => [
-  `https://www.holy-bhagavad-gita.org/media/audios/${String(c).padStart(3, "0")}_${String(v).padStart(3, "0")}.mp3`,
+// Ranges on holy-bhagavad-gita.org where multiple verses share a single composite recitation.
+export const VERSE_AUDIO_RANGES = [
+  [1, 4, 6], [1, 16, 18], [1, 21, 22], [1, 29, 31], [1, 32, 33],
+  [1, 34, 35], [1, 36, 37], [1, 38, 39], [1, 45, 46], [2, 42, 43],
+  [3, 1, 2], [3, 20, 21], [4, 29, 30], [5, 8, 9], [5, 27, 28],
+  [6, 12, 13], [6, 24, 25], [6, 41, 42], [8, 1, 2], [8, 9, 10],
+  [8, 23, 26], [9, 7, 8], [9, 16, 17], [10, 4, 5], [10, 12, 13],
+  [10, 16, 17], [11, 10, 11], [11, 26, 27], [11, 28, 29], [11, 41, 42],
+  [11, 52, 53], [12, 3, 4], [12, 6, 7], [12, 13, 14], [12, 18, 19],
+  [13, 8, 12], [14, 3, 4], [14, 11, 13], [14, 14, 15], [14, 22, 23],
+  [14, 24, 25], [15, 3, 4], [16, 1, 3], [16, 13, 15], [16, 19, 20],
+  [17, 5, 6], [17, 26, 27], [18, 15, 16], [18, 51, 53],
 ];
+
+// Per-verse Sanskrit recitation (Swami Mukundananda's holy-bhagavad-gita.org, same 701-verse numbering).
+export const VERSE_AUDIO = (c, v) => {
+  const match = VERSE_AUDIO_RANGES.find(([ch, start, end]) => ch === c && v >= start && v <= end);
+  const part = match
+    ? `${String(match[1]).padStart(3, "0")}-${String(match[2]).padStart(3, "0")}`
+    : String(v).padStart(3, "0");
+  return [
+    `https://www.holy-bhagavad-gita.org/media/audios/${String(c).padStart(3, "0")}_${part}.mp3`,
+  ];
+};
 
 // Chapter-length open recitations on archive.org (fallback for continuous chapter mode).
 export const ARCHIVE_ITEMS = [
