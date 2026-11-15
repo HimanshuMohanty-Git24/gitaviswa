@@ -1,11 +1,22 @@
-// Unified BYOK provider registry — every provider speaks the OpenAI-compatible /chat/completions protocol.
+// Unified provider registry. Hosted providers speak the OpenAI-compatible /chat/completions protocol.
+// "ondevice" is different: a small Hugging Face model runs inside the visitor's browser (Transformers.js,
+// WebGPU or WASM). Nothing is sent anywhere, and no key is needed.
 
-export type ProviderId = "groq" | "openrouter" | "xai" | "openai" | "ollama";
+export type ProviderId = "ondevice" | "groq" | "openrouter" | "xai" | "openai" | "ollama";
 
 export interface ModelPreset {
   id: string;
   label: string;
   free?: boolean;
+  /** In-browser models: plain-language facts so people can choose without knowing what a parameter is. */
+  params?: string;
+  sizeMB?: number;
+  ramMB?: number;
+  quality?: 1 | 2 | 3 | 4 | 5;
+  speed?: "fast" | "balanced" | "slow";
+  bestFor?: string;
+  /** Recommended on a machine with WebGPU. Works on CPU too, just slower. */
+  webgpu?: boolean;
 }
 
 export interface ProviderInfo {
@@ -20,9 +31,88 @@ export interface ProviderInfo {
   models: ModelPreset[];
   keyUrl: string;
   keyPrefix?: string;
+  /** true → the model runs in the visitor's browser; the server never relays it and no key is needed. */
+  local?: boolean;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
+  ondevice: {
+    id: "ondevice",
+    name: "In this browser",
+    tagline: "A small model runs on your device — free, offline, and private",
+    baseUrl: "",
+    envKey: null,
+    envModel: "",
+    defaultModel: "onnx-community/Qwen2.5-0.5B-Instruct",
+    local: true,
+    models: [
+      {
+        id: "onnx-community/Qwen2.5-0.5B-Instruct",
+        label: "Qwen2.5 0.5B",
+        params: "0.5B",
+        sizeMB: 400,
+        ramMB: 900,
+        quality: 3,
+        speed: "fast",
+        bestFor: "Balanced default for most laptops",
+        webgpu: true,
+      },
+      {
+        id: "HuggingFaceTB/SmolLM2-360M-Instruct",
+        label: "SmolLM2 360M",
+        params: "0.36B",
+        sizeMB: 270,
+        ramMB: 700,
+        quality: 2,
+        speed: "fast",
+        bestFor: "Quickest answers on modest machines",
+      },
+      {
+        id: "onnx-community/gemma-3-270m-it-ONNX",
+        label: "Gemma 3 270M",
+        params: "0.27B",
+        sizeMB: 350,
+        ramMB: 800,
+        quality: 2,
+        speed: "fast",
+        bestFor: "Tiny multilingual model, Hindi included",
+      },
+      {
+        id: "onnx-community/Llama-3.2-1B-Instruct",
+        label: "Llama 3.2 1B",
+        params: "1B",
+        sizeMB: 800,
+        ramMB: 1600,
+        quality: 3,
+        speed: "balanced",
+        bestFor: "Best English writing for its size",
+        webgpu: true,
+      },
+      {
+        id: "onnx-community/Qwen2.5-1.5B-Instruct",
+        label: "Qwen2.5 1.5B",
+        params: "1.5B",
+        sizeMB: 1100,
+        ramMB: 2400,
+        quality: 4,
+        speed: "balanced",
+        bestFor: "Highest quality that still fits most laptops",
+        webgpu: true,
+      },
+      {
+        id: "onnx-community/Qwen3-0.6B-ONNX",
+        label: "Qwen3 0.6B",
+        params: "0.6B",
+        sizeMB: 500,
+        ramMB: 1200,
+        quality: 3,
+        speed: "fast",
+        bestFor: "Thinks step by step before answering",
+        webgpu: true,
+      },
+    ],
+    keyUrl: "https://huggingface.co/models?library=transformers.js&p=text-generation",
+  },
   groq: {
     id: "groq",
     name: "Groq",
@@ -108,9 +198,12 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   },
 };
 
-export const PROVIDER_ORDER: ProviderId[] = ["groq", "openrouter", "xai", "openai", "ollama"];
+export const PROVIDER_ORDER: ProviderId[] = ["ondevice", "groq", "openrouter", "xai", "openai", "ollama"];
 
 export const isProviderId = (s: unknown): s is ProviderId => typeof s === "string" && s in PROVIDERS;
+
+/** Human label for a model id (in-browser models have friendly names; API models keep their id). */
+export const modelLabel = (p: ProviderId, id: string) => PROVIDERS[p].models.find((m) => m.id === id)?.label || id;
 
 /** The env variable names the settings API is allowed to read & write. */
 export const MANAGED_ENV_KEYS = [

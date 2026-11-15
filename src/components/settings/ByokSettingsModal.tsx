@@ -5,8 +5,10 @@ import { Check, ChevronDown, Database, Download, ExternalLink, Eye, EyeOff, Load
 import { useGita } from "@/lib/store/useGitaStore";
 import { useModal } from "@/lib/hooks/useModal";
 import { useConnection, useSettings } from "@/lib/store/settingsStore";
-import { PROVIDER_ORDER, PROVIDERS, type ProviderId } from "@/lib/llm/providers";
+import { PROVIDER_ORDER, PROVIDERS, modelLabel, type ProviderId } from "@/lib/llm/providers";
+import { testOnDevice, type OnDeviceProgress } from "@/lib/llm/ondevice";
 import { Notice } from "@/components/ui/primitives";
+import { OnDeviceModels } from "./OnDeviceModels";
 
 type Section = "model" | "search" | "appearance" | "data";
 // Everyday settings first; the AI provider, search engine and graph-database integrations are optional extras.
@@ -21,6 +23,12 @@ function StatusBadge({ p }: { p: ProviderId }) {
   const env = useSettings((s) => s.env?.providers[p]);
   const key = useSettings((s) => s.keys[p]);
   const base = "inline-flex items-center gap-1.5 text-[11.5px]";
+  if (PROVIDERS[p].local)
+    return (
+      <span className={`${base} text-good`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-good" /> Runs on this device, no key
+      </span>
+    );
   if (p === "ollama") return <span className={`${base} text-text-3`}>Runs locally, no key</span>;
   if (env?.configured)
     return (
@@ -49,8 +57,20 @@ function Field({ label, children, hint, htmlFor }: { label: React.ReactNode; chi
   );
 }
 
+function progressText(p: OnDeviceProgress) {
+  const mb = (n?: number) => (n ? `${(n / 1048576).toFixed(0)} MB` : "");
+  const name = p.file ? p.file.split("/").pop() : p.name || "model";
+  if (p.status === "ready") return "Model ready. It is cached in this browser and works offline.";
+  if (p.status === "progress") return `Downloading ${name}… ${Math.round(p.progress ?? 0)}%${p.total ? ` (${mb(p.loaded)} of ${mb(p.total)})` : ""}`;
+  if (p.status === "done") return `Downloaded ${name}.`;
+  if (p.status === "initiate") return "Preparing the first download from Hugging Face…";
+  if (p.status === "download") return `Downloading ${name}…`;
+  return p.status ? p.status[0].toUpperCase() + p.status.slice(1) : "Working…";
+}
+
 function ProviderForm({ p }: { p: ProviderId }) {
   const info = PROVIDERS[p];
+  const local = !!info.local;
   const s = useSettings();
   const env = s.env?.providers[p];
   const [key, setKey] = useState(s.keys[p] || "");
@@ -62,6 +82,7 @@ function ProviderForm({ p }: { p: ProviderId }) {
   const [saving, setSaving] = useState(false);
   const [live, setLive] = useState<{ models: string[]; recommended: string | null } | null>(null);
   const [liveErr, setLiveErr] = useState("");
+  const [dl, setDl] = useState<OnDeviceProgress | null>(null);
 
   useEffect(() => {
     setKey(useSettings.getState().keys[p] || "");
@@ -69,6 +90,7 @@ function ProviderForm({ p }: { p: ProviderId }) {
     setMsg(null);
     setLive(null);
     setLiveErr("");
+    setDl(null);
   }, [p]);
 
   // Providers retire models: fetch what this key can actually use.
@@ -81,12 +103,12 @@ function ProviderForm({ p }: { p: ProviderId }) {
     if (r.error) setLiveErr(r.error);
     else setLive({ models: r.models, recommended: r.recommended });
   };
-  const connected = p === "ollama" || !!key || !!env?.configured;
+  const connected = local || p === "ollama" || !!key || !!env?.configured;
   useEffect(() => {
-    if (connected) loadLive();
+    if (connected && !local) loadLive();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p, connected]);
-  const modelMissing = !!live && live.models.length > 0 && !live.models.includes(model);
+  const modelMissing = !local && !!live && live.models.length > 0 && !live.models.includes(model);
   const options = [...new Set([...info.models.map((m) => m.id), ...(live?.models || [])])];
 
   const save = async () => {
@@ -96,6 +118,16 @@ function ProviderForm({ p }: { p: ProviderId }) {
     setMsg({ ok: true, text: r.message });
   };
   const test = async () => {
+    if (local) {
+      setTesting(true);
+      setMsg(null);
+      setDl({ status: "initiate" });
+      const res = await testOnDevice(model, (x) => setDl(x));
+      setTesting(false);
+      setDl(null);
+      setMsg(res.ok ? { ok: true, text: `Ready. ${modelLabel(p, model)} replied in ${res.ms} ms on this device (the first run includes the download).` } : { ok: false, text: res.error || "The in-browser model could not start." });
+      return;
+    }
     setTesting(true);
     setMsg(null);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -128,6 +160,13 @@ function ProviderForm({ p }: { p: ProviderId }) {
         </Notice>
       )}
 
+      {local && (
+        <Notice icon={<Sparkles size={14} />}>
+          The first run downloads the model ({info.models.find((m) => m.id === model)?.sizeMB ?? 400} MB) from Hugging Face. After that it runs offline. Your
+          questions and retrieved verses never leave this device.
+        </Notice>
+      )}
+
       {info.envKey && (
         <Field
           label="API key"
@@ -157,8 +196,8 @@ function ProviderForm({ p }: { p: ProviderId }) {
         label={
           <>
             Model
-            {live && <span className="font-normal text-text-3">{live.models.length} available to this key</span>}
-            {connected && (
+            {!local && live && <span className="font-normal text-text-3">{live.models.length} available to this key</span>}
+            {!local && connected && (
               <button type="button" className="ml-auto font-normal text-text-3 hover:text-text" onClick={loadLive}>
                 Refresh list
               </button>
@@ -166,26 +205,41 @@ function ProviderForm({ p }: { p: ProviderId }) {
           </>
         }
         htmlFor={`model-${p}`}
-        hint={liveErr ? `The live model list could not be loaded: ${liveErr}` : undefined}
+        hint={!local && liveErr ? `The live model list could not be loaded: ${liveErr}` : undefined}
       >
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <select className="field" value={options.includes(model) ? model : ""} onChange={(e) => e.target.value && setModel(e.target.value)} aria-label="Choose a model">
-            <option value="">Custom model id</option>
-            {options.map((id) => {
-              const preset = info.models.find((m) => m.id === id);
-              const off = live && live.models.length > 0 && !live.models.includes(id);
-              return (
-                <option key={id} value={id}>
-                  {preset?.label || id}
-                  {preset?.free ? " (free)" : ""}
-                  {off ? " (unavailable)" : ""}
-                </option>
-              );
-            })}
-          </select>
-          <input id={`model-${p}`} className="field font-mono !text-[12.5px]" value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model id" />
-        </div>
+        {local ? (
+          <OnDeviceModels value={model} onChange={setModel} />
+        ) : (
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <select className="field" value={options.includes(model) ? model : ""} onChange={(e) => e.target.value && setModel(e.target.value)} aria-label="Choose a model">
+              <option value="">Custom model id</option>
+              {options.map((id) => {
+                const preset = info.models.find((m) => m.id === id);
+                const off = live && live.models.length > 0 && !live.models.includes(id);
+                return (
+                  <option key={id} value={id}>
+                    {preset?.label || id}
+                    {preset?.free ? " (free)" : ""}
+                    {off ? " (unavailable)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+            <input id={`model-${p}`} className="field font-mono !text-[12.5px]" value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model id" />
+          </div>
+        )}
       </Field>
+      {local && (
+        <details className="group text-[12.5px] text-text-3">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-text-2 hover:text-text">
+            <ChevronDown size={14} className="-rotate-90 transition-transform group-open:rotate-0" /> Use another Hugging Face model
+          </summary>
+          <div className="pl-5">
+            <input className="field mt-2 font-mono !text-[12.5px]" value={model} onChange={(e) => setModel(e.target.value)} placeholder="onnx-community/…" aria-label="Hugging Face model id" spellCheck={false} />
+            <p className="mt-1.5 leading-4">Any Transformers.js text-generation repository on the Hugging Face Hub. Very large models may exceed this device&apos;s memory.</p>
+          </div>
+        </details>
+      )}
       {modelMissing && (
         <Notice tone="danger">
           “{model}” is not offered by {info.name} for this key.{" "}
@@ -215,8 +269,8 @@ function ProviderForm({ p }: { p: ProviderId }) {
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save and use
         </button>
-        <button type="button" className="btn" onClick={test} disabled={testing || (!!info.envKey && !key && !env?.configured)}>
-          {testing ? <LoaderCircle size={14} className="animate-spin" /> : <PlugZap size={14} />} {testing ? "Testing" : "Test connection"}
+        <button type="button" className="btn" onClick={test} disabled={testing || (!local && !!info.envKey && !key && !env?.configured)}>
+          {testing ? <LoaderCircle size={14} className="animate-spin" /> : <PlugZap size={14} />} {testing ? (local ? "Downloading" : "Testing") : local ? "Download & test" : "Test connection"}
         </button>
         {info.envKey && (s.keys[p] || env?.source === ".env.local") && (
           <button type="button" className="btn btn-ghost btn-danger ml-auto" onClick={async () => (await s.forgetKey(p), setKey(""), setMsg({ ok: true, text: "Key removed from this browser and from .env.local." }))}>
@@ -224,15 +278,25 @@ function ProviderForm({ p }: { p: ProviderId }) {
           </button>
         )}
       </div>
+      {dl && (
+        <div className="space-y-1.5" role="status" aria-live="polite">
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
+            <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${Math.max(3, Math.min(100, Math.round(dl.progress ?? (dl.status === "ready" ? 100 : 8))))}%` }} />
+          </div>
+          <p className="text-[12px] leading-4 text-text-3">{progressText(dl)}</p>
+        </div>
+      )}
       {msg && <p className={`text-[12.5px] leading-[1.45] ${msg.ok ? "text-good" : "text-danger"}`} role="status">{msg.text}</p>}
-      <details className="group text-[12.5px] text-text-3">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-text-2 hover:text-text">
-          <ChevronDown size={14} className="-rotate-90 transition-transform group-open:rotate-0" /> How keys are stored
-        </summary>
-        <p className="mt-2 pl-5 leading-5">
-          A saved key is kept in this browser&apos;s local storage. When GitaViśva runs on your own machine it is also written to <code className="text-text-2">.env.local</code> (ignored by git) so it survives restarts. Keys are never sent back to the browser from the server. {s.env && !s.env.writable && s.env.reason ? `Here: ${s.env.reason}` : ""}
-        </p>
-      </details>
+      {!local && (
+        <details className="group text-[12.5px] text-text-3">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-text-2 hover:text-text">
+            <ChevronDown size={14} className="-rotate-90 transition-transform group-open:rotate-0" /> How keys are stored
+          </summary>
+          <p className="mt-2 pl-5 leading-5">
+            A saved key is kept in this browser&apos;s local storage. When GitaViśva runs on your own machine it is also written to <code className="text-text-2">.env.local</code> (ignored by git) so it survives restarts. Keys are never sent back to the browser from the server. {s.env && !s.env.writable && s.env.reason ? `Here: ${s.env.reason}` : ""}
+          </p>
+        </details>
+      )}
     </form>
   );
 }
@@ -241,15 +305,15 @@ function ModelSection() {
   const active = useSettings((s) => s.active);
   const setActive = useSettings((s) => s.setActive);
   const conn = useConnection();
-  const [tab, setTab] = useState<ProviderId>(active || "groq");
+  const [tab, setTab] = useState<ProviderId>(active || "ondevice");
   return (
     <div>
       <h2 className="text-[18px] font-semibold text-text">Language model</h2>
-      <p className="mt-1 max-w-[60ch] text-[13.5px] leading-[1.55] text-text-2">GitaViśva works fully offline. Connecting a model adds written answers in Ask, explanations of paths, deeper reflections and translations into more languages.</p>
+      <p className="mt-1 max-w-[60ch] text-[13.5px] leading-[1.55] text-text-2">GitaViśva works fully offline. A language model adds written answers in Ask, explanations of paths, deeper reflections and translations into more languages. The lightest option is a small model that runs inside this browser — no key, no account, nothing sent anywhere.</p>
       <div className="mt-3">
         {conn ? (
           <Notice tone="accent" icon={<Check size={14} />}>
-            In use: <span className="font-medium text-text">{PROVIDERS[conn.provider].name}</span>, {conn.model}
+            In use: <span className="font-medium text-text">{PROVIDERS[conn.provider].local ? `${modelLabel(conn.provider, conn.model)} on this device` : `${PROVIDERS[conn.provider].name}, ${conn.model}`}</span>
           </Notice>
         ) : (
           <Notice icon={<WifiOff size={14} />}>Offline mode. Answers are assembled directly from the graph.</Notice>

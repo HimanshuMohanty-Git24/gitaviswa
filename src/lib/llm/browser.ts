@@ -1,6 +1,19 @@
 "use client";
 import { currentConnection, useSettings } from "@/lib/store/settingsStore";
+import { ANALYZE_SYSTEM, BRIDGE_SYSTEM, COMMENTARY_SYSTEM, PARTHA_SARATHI_SYSTEM, TRANSLATE_SYSTEM } from "@/lib/graphrag/prompts";
 import { PROVIDERS } from "./providers";
+import { generateOnDevice } from "./ondevice";
+import { buildLocalChatPrompt, buildLocalTaskPrompt, ungroundedReason } from "./localPrompt";
+
+type Mode = "chat" | "bridge" | "translate" | "analyze" | "commentary";
+
+const SYSTEM: Record<Mode, string> = {
+  chat: PARTHA_SARATHI_SYSTEM,
+  bridge: BRIDGE_SYSTEM,
+  translate: TRANSLATE_SYSTEM,
+  analyze: ANALYZE_SYSTEM,
+  commentary: COMMENTARY_SYSTEM,
+};
 
 export interface StreamResult {
   ok: boolean;
@@ -25,6 +38,31 @@ export async function streamFromApi(opts: {
   const s = useSettings.getState();
   const conn = currentConnection(s);
   if (!conn) return { ok: false, text: "", code: "no-key", error: "No LLM provider connected." };
+
+  // In-browser models never touch the network (after the one-time download) and have no key or server.
+  if (PROVIDERS[conn.provider].local) {
+    const chat = opts.mode === "chat";
+    // Tiny models follow one short user turn far better than a long system prompt plus history.
+    const prompt = chat ? buildLocalChatPrompt(opts.question, opts.context) : buildLocalTaskPrompt(SYSTEM[opts.mode], opts.question, opts.context);
+    try {
+      const r = await generateOnDevice({
+        model: conn.model,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: chat ? 320 : 512,
+        temperature: chat ? 0.3 : 0.2,
+        signal: opts.signal,
+        onToken: opts.onToken,
+      });
+      if (!r.text.trim() || r.text.trim().length < 20) return { ok: false, text: r.text, code: "ondevice-empty", error: "The in-browser model returned nothing usable." };
+      // A rambling or ungrounded reply is replaced by the deterministic graph answer upstream.
+      const bad = chat ? ungroundedReason(r.text) : null;
+      if (bad) return { ok: false, text: r.text, code: "ondevice-ungrounded", error: bad };
+      return { ok: true, text: r.text, provider: PROVIDERS[conn.provider].name, model: conn.model };
+    } catch (e) {
+      return { ok: false, text: "", code: "ondevice", error: (e as Error).message };
+    }
+  }
+
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const key = s.keys[conn.provider];
   if (key) headers["x-gitaviswa-key"] = key;

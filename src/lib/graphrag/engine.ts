@@ -280,7 +280,7 @@ const PRACTICE: Record<string, string> = {
 };
 
 /** Zero-key answer composed deterministically from the retrieved subgraph (works fully offline). */
-export function composeOfflineAnswer(ctx: RagContext, r: Retrieval): string {
+export function composeOfflineAnswer(ctx: RagContext, r: Retrieval, opts: { fallback?: boolean } = {}): string {
   const n = (id: string) => ctx.graphs.nodeById.get(id);
   const lines: string[] = [];
   const topE = r.emotions.map((e) => n(e.id)).find((x) => x?.type === "Emotion" && x.valence === "afflictive");
@@ -323,7 +323,9 @@ export function composeOfflineAnswer(ctx: RagContext, r: Retrieval): string {
     lines.push(`${PRACTICE[practiceKey]}${p && p.type === "SanskritConcept" ? ` [Concept: ${p.label}]` : ""}`);
   }
   lines.push(
-    `\n<small>Composed offline from ${r.subgraph.nodes.length} connected points in ${r.timings.total.toFixed(0)} ms. Connect a language model in Settings for a written answer.</small>`,
+    opts.fallback
+      ? `\n<small>Composed from the graph in ${r.timings.total.toFixed(0)} ms after the language model's reply was set aside.</small>`
+      : `\n<small>Composed offline from ${r.subgraph.nodes.length} connected points in ${r.timings.total.toFixed(0)} ms. Connect a language model in Settings for a written answer.</small>`,
   );
   return lines.join("\n");
 }

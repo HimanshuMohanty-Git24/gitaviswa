@@ -163,15 +163,25 @@ Your saved thoughts, settings and API key are kept in your browser, not in the f
 
 This step is optional. Without it, everything except AI-written text still works: the graph, the reader, commentaries, recitation, search, Reflect, and Ask, which then puts its answer together directly from the graph. Connecting a language model adds written answers in Ask, explanations of paths, AI translations of Sanskrit-only commentaries, and verse meanings in more Indian languages.
 
-To connect one you need an **API key**: a password-like code that lets GitaViśva use an AI service on your behalf. You create it on the service's website and paste it into GitaViśva.
+There are two ways to connect one. **In this browser** downloads a small open model from Hugging Face once and runs it on your device: free, private, and no account. A hosted service is faster and writes better prose, but needs an API key.
 
-| Service | Cost | Get a key at | The key starts with |
+| Service | Cost | Get it at | The key starts with |
 | --- | --- | --- | --- |
-| **Groq** (recommended) | Free plan with daily limits | [console.groq.com/keys](https://console.groq.com/keys) | `gsk_` |
+| **In this browser** (private) | Free, no key. Downloads 250–1,100 MB once, then runs offline on your device. Best in Chrome or Edge with WebGPU. | [Hugging Face](https://huggingface.co/models?library=transformers.js&p=text-generation) | no key |
+| **Groq** (recommended for quality) | Free plan with daily limits | [console.groq.com/keys](https://console.groq.com/keys) | `gsk_` |
 | **OpenRouter** | Free models (names ending in `:free`): 50 requests a day, or 1,000 a day after a one-time purchase of $10 of credit | [openrouter.ai/keys](https://openrouter.ai/keys) | `sk-or-` |
 | **Ollama** | Free, runs on your own computer, no key. Needs a fairly powerful computer and works only when GitaViśva runs on the same computer. | [ollama.com/download](https://ollama.com/download) | no key |
 | **OpenAI** | Paid, pay as you go | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `sk-` |
 | **xAI** (Grok) | Paid | [console.x.ai](https://console.x.ai) | `xai-` |
+
+### Run a small model in your browser (no key)
+
+1. Open Settings, choose **Language model**, then **In this browser**.
+2. Pick a model by its size, speed and quality. **Qwen2.5 0.5B** is the default; **Llama 3.2 1B** or **Qwen2.5 1.5B** write better answers if your machine has the memory.
+3. Click **Download & test**. The first run downloads the weights from Hugging Face; later visits load them from the browser cache.
+4. Click **Save and use**.
+
+The model runs in the page's memory. Your questions, the retrieved verses and the answer never leave the device. Small models are less fluent than hosted ones, so treat their prose as a starting point and rely on the cited verses. Without WebGPU the model falls back to CPU (WASM), which is slower. You can type any Transformers.js text-generation repository instead of a preset.
 
 ### Get a free Groq key (about 2 minutes)
 
@@ -186,9 +196,9 @@ For **Ollama**, install it from [ollama.com/download](https://ollama.com/downloa
 ### Paste the key into GitaViśva
 
 1. Click the gear icon at the top right. Settings opens on **Language model**.
-2. Under **Provider**, choose the service (for example **Groq**).
-3. Paste your key into **API key**.
-4. Click **Test connection**, then **Save and use**.
+2. Under **Provider**, choose the service (for example **Groq**), or **In this browser** for a local model.
+3. Paste your key into **API key** (hosted services only).
+4. Click **Test connection** (or **Download & test**), then **Save and use**.
 
 The key is saved in this browser. If you use another browser or device, paste it there too. (If you run GitaViśva with `npm run dev`, it is also written to a file named `.env.local` in the project folder. You can also create that file yourself: copy `.env.example` to `.env.local` and put your key after `GROQ_API_KEY=`.)
 
@@ -263,7 +273,7 @@ cp .env.example .env.local   # or use Settings (gear icon, top right) in the app
 
 ## Works with zero keys, fully offline
 
-With no API key, everything except LLM-written prose still works: the 2D/3D graph, path finding, Louvain colouring, reader, all scripts, commentaries, search, the Reflect mapping, and Ask itself. Without a key it composes **deterministic answers from the retrieved subgraph**: the matched state or situation, the most relevant verses with the reason each was retrieved, any causal chain involved, and a contemplation. In production builds a service worker caches the app shell and data once visited; commentaries and recordings that were never opened need a connection, and recitation falls back to the platform speech engine. Your saved thoughts never depend on the network.
+With no model connected, everything except LLM-written prose still works: the 2D/3D graph, path finding, Louvain colouring, reader, all scripts, commentaries, search, the Reflect mapping, and Ask itself. Without a model it composes **deterministic answers from the retrieved subgraph**: the matched state or situation, the most relevant verses with the reason each was retrieved, any causal chain involved, and a contemplation. Choosing **In this browser** adds written prose without any key: a small Hugging Face model is downloaded once and then runs in the page. In production builds a service worker caches the app shell and data once visited; commentaries and recordings that were never opened need a connection, and recitation falls back to the platform speech engine. Your saved thoughts never depend on the network.
 
 ## Architecture
 
@@ -368,7 +378,7 @@ Open **Settings** (the gear icon in the top bar; its dot shows whether a model i
 
 - **Detected automatically:** keys in `.env.local`, `.env` or the environment show a green **"Connected via .env"** badge (masked, e.g. `gsk_…abcd`) when the app is opened on the same machine. You never type them.
 - **Saved twice:** a key entered in the modal is stored in `localStorage` and POSTed to `/api/settings/env`, which upserts `.env.local` (preserving other lines, written atomically) and updates `process.env` live. It survives restarts and cleared browsers.
-- **Providers:** Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), OpenRouter (one-click **free** presets: `meta-llama/llama-3.3-70b-instruct:free`, `google/gemma-3-27b-it:free`, `deepseek/deepseek-r1:free`), xAI (`grok-2-latest`), OpenAI (`gpt-4o-mini` / `gpt-4o`), and local **Ollama** (`http://localhost:11434`). Any model id can be typed; the modal lists the models your key can actually use (live from the provider's `/models`), flags unavailable ones, and **Test** does a live round-trip.
+- **Providers:** **In this browser** (Hugging Face via Transformers.js: default `onnx-community/Qwen2.5-0.5B-Instruct`, plus SmolLM2 360M, Gemma 3 270M, Llama 3.2 1B, Qwen2.5 1.5B and Qwen3 0.6B; downloaded once and cached, WebGPU when available, WASM otherwise), Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), OpenRouter (one-click **free** presets: `meta-llama/llama-3.3-70b-instruct:free`, `google/gemma-3-27b-it:free`, `deepseek/deepseek-r1:free`), xAI (`grok-2-latest`), OpenAI (`gpt-4o-mini` / `gpt-4o`), and local **Ollama** (`http://localhost:11434`). Any model id can be typed; the modal lists the models your key can actually use (live from the provider's `/models`), flags unavailable ones, and **Test** does a live round-trip.
 - **Retired models never strand you:** providers retire models (Groq dropped the Llama 3.x line in 2026). If the configured model is gone, the server picks the best available one, remembers the substitution, reports it in an `X-GitaViswa-Model-Fallback` header, and the companion shows a note and adopts the working model in the browser.
 - **Security model:**
   - Writes only from loopback with a same-origin `Origin` header (CSRF guard), and only in `next dev` unless `GITAVISWA_ALLOW_ENV_WRITE=true`.
@@ -434,7 +444,7 @@ src/
   lib/
     graph/             graphStore (graphology) · pathfinder (Dijkstra) · communities (Louvain) · relations
     graphrag/          engine · search (Orama) · router · citations · prompts · safety · text
-    llm/               providers · client (server, SSE) · browser
+    llm/               providers · client (server, SSE) · browser · ondevice (Transformers.js, WebGPU/WASM)
     store/             useGitaStore · settingsStore · audioStore · personalStore (IndexedDB)
     indic/             regional-script transliteration
     server/            data cache · .env.local writer · localhost guard
@@ -445,7 +455,8 @@ src/
 - **Numbering:** the source dataset has **701** entries. It includes 13.1 (*prakṛtiṃ puruṣaṃ caiva…*, Arjuna's question), which some recensions print and the traditional count of 700 omits. It is kept as `BG_13.1` with `canonical: false`, and chapter 13 follows this numbering (Gita Press 13.n = here 13.n+1), as the per-verse audio does. Speaker totals therefore read Arjuna 86 (85 + 13.1) and Sañjaya 31 + 10 narrated. 1.21 is credited to Arjuna with Sañjaya's half-line recorded as `NARRATED`.
 - **Fallback repositories:** the two fallback URLs in the brief (`kashyap07/…`, `praneshp1org/…/bhagavad_gita.json`) return 404. Working mirrors of the same dataset (`praneshp1org/Bhagavad-Gita-JSON-data/{verse,translation,commentary,chapters}.json`) and the per-verse `vedicscriptures/bhagavad-gita` are used instead.
 - **Audio URL:** the pattern `/public/audio/{c}_{v}.mp3` from the brief returns 404 and the IITK URLs return HTML. The verified endpoint is `https://www.holy-bhagavad-gita.org/media/audios/CCC_VVV.mp3`.
-- **Embeddings:** `@huggingface/transformers` (the official successor of `@xenova/transformers`, same `pipeline` API) is used as an optional dependency. `@xenova/transformers` pins `sharp@0.32`, whose install script must download libvips from GitHub, and that is blocked by npm 12's default install-script policy and was unreliable on the build network.
+- **Embeddings:** `@huggingface/transformers` (the official successor of `@xenova/transformers`, same `pipeline` API) is used as an optional dependency for server-side query vectors. `@xenova/transformers` pins `sharp@0.32`, whose install script must download libvips from GitHub, and that is blocked by npm 12's default install-script policy and was unreliable on the build network.
+- **In-browser LLMs:** the same library is loaded at runtime from jsDelivr (`@huggingface/transformers@4.3.2`) so no ONNX/native package enters the Next.js client bundle. Weights come from the Hugging Face Hub, are cached by the browser after the first download, and run on WebGPU when available (quantised `q4f16`) or CPU/WASM (`q4`) otherwise. Only one model is kept in memory at a time.
 - **Security override:** `package.json` overrides Next 15's bundled `postcss` to `^8.5.32` to clear GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849, GHSA-fxqj-rqcc-2cmp and GHSA-qx2v-qp2m-jg93 without moving to Next 16 (`npm audit`: 0 vulnerabilities).
 - The **React Flow attribution** is kept visible (styled quietly), per its licence request.
 

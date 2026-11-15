@@ -29,6 +29,7 @@ export class ProviderError extends Error {
 /** Pick credentials: a key sent by the browser (BYOK) wins, otherwise the server's .env when `serverKeys` allows it. */
 export function resolveProvider(id: ProviderId, opts: { apiKey?: string | null; model?: string | null; baseUrl?: string | null; serverKeys: boolean }): ResolvedProvider {
   const p = PROVIDERS[id];
+  if (p.local) throw new ProviderError(`${p.name} models run in the visitor's browser and cannot be called from the server.`, 400, "bad-request");
   const envKey = opts.serverKeys && p.envKey ? process.env[p.envKey]?.trim() || null : null;
   const apiKey = opts.apiKey?.trim() || envKey;
   const model = opts.model?.trim() || process.env[p.envModel]?.trim() || p.defaultModel;
