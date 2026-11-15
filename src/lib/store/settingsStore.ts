@@ -63,7 +63,7 @@ export const useSettings = create<SettingsState>()(
           set({ env, envLoaded: true });
           // Auto-connect: if nothing chosen yet, adopt the .env default or the first configured provider.
           if (!get().active) {
-            const usable = (p: ProviderId | null) => !!p && (p === "ollama" || env.providers[p]?.configured || !!get().keys[p]);
+            const usable = (p: ProviderId | null) => !!p && (!!PROVIDERS[p].local || p === "ollama" || env.providers[p]?.configured || !!get().keys[p]);
             const def = usable(env.defaultProvider) ? env.defaultProvider : null;
             const first = def || PROVIDER_ORDER.find((p) => p !== "ollama" && env.providers[p]?.configured) || PROVIDER_ORDER.find((p) => get().keys[p]) || null;
             if (first) set({ active: first });
@@ -87,6 +87,10 @@ export const useSettings = create<SettingsState>()(
         }
         if (input.model) models[p] = input.model;
         set({ keys, models, ...(p === "ollama" && input.baseUrl ? { ollamaBaseUrl: input.baseUrl } : {}), ...(input.makeDefault ? { active: p } : {}) });
+
+        if (PROVIDERS[p].local) {
+          return { browser: true, env: "skipped", message: "Saved in this browser. This model runs on your device: no key and no server involved." };
+        }
 
         try {
           const res = await fetch("/api/settings/env", {
@@ -125,6 +129,8 @@ export function currentConnection(s: Pick<SettingsState, "active" | "keys" | "mo
   const p = s.active;
   if (!p) return null;
   const model = s.models[p] || s.env?.providers[p]?.model || PROVIDERS[p].defaultModel;
+  // In-browser models need neither a key nor the server; they are available as soon as one is chosen.
+  if (PROVIDERS[p].local) return { provider: p, via: "local", model };
   if (p === "ollama") return { provider: p, via: "local", model };
   if (s.keys[p]) return { provider: p, via: "browser", model };
   if (s.env?.providers[p]?.configured) return { provider: p, via: "env", model };

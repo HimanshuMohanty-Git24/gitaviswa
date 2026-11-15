@@ -12,7 +12,7 @@ import { themeLabel } from "@/lib/graphrag/reflect";
 import { useDraft } from "@/lib/store/draftStore";
 import { uid as newId } from "@/lib/store/thoughtModel";
 import { streamFromApi } from "@/lib/llm/browser";
-import { PROVIDERS } from "@/lib/llm/providers";
+import { PROVIDERS, modelLabel } from "@/lib/llm/providers";
 import { Notice } from "@/components/ui/primitives";
 import { RichText } from "./RichText";
 import { SubgraphCitationChips } from "./SubgraphCitationChips";
@@ -103,6 +103,8 @@ export function GraphRagChatbot({ onClose }: { onClose: () => void }) {
   const [newBelow, setNewBelow] = useState(false);
   const atBottom = useRef(true);
   const answered = messages.filter((m) => m.role === "assistant" && !m.streaming && m.content).length;
+  const local = conn ? !!PROVIDERS[conn.provider].local : false;
+  const connLabel = conn ? (local ? `${modelLabel(conn.provider, conn.model)} · in this browser` : `${PROVIDERS[conn.provider].name}, ${conn.model}`) : "Offline: answers are composed from the graph";
 
   // Follow the answer only while the reader is at the bottom; never pull them away from text they are reading.
   useEffect(() => {
@@ -147,7 +149,7 @@ export function GraphRagChatbot({ onClose }: { onClose: () => void }) {
     setHighlight({ nodes: new Set(retrieval.subgraph.nodes), edges: new Set(retrieval.subgraph.edges), label: `Answer to “${q.slice(0, 48)}${q.length > 48 ? "…" : ""}”`, source: "chat" });
     patch(aid, { retrieval, crisis: retrieval.crisis, phase: "writing" });
 
-    const offline = (note?: string) => patch(aid, { content: composeOfflineAnswer(ctx, retrieval), streaming: false, offline: true, via: "Composed from the graph", note });
+    const offline = (note?: string, fallback = false) => patch(aid, { content: composeOfflineAnswer(ctx, retrieval, { fallback }), streaming: false, offline: true, via: "Composed from the graph", note });
 
     if (!conn) {
       offline();
@@ -160,11 +162,11 @@ export function GraphRagChatbot({ onClose }: { onClose: () => void }) {
       if (r.ok && r.text.trim())
         patch(aid, {
           streaming: false,
-          via: `${PROVIDERS[conn.provider].name}, ${r.model}`,
+          via: local ? `${modelLabel(conn.provider, r.model ?? conn.model)} · on this device` : `${PROVIDERS[conn.provider].name}, ${r.model}`,
           note: r.fallbackFrom ? `“${r.fallbackFrom}” is no longer offered by ${r.provider}, so ${r.model} answered and is now selected in this browser. Update ${PROVIDERS[conn.provider].envModel} in .env (or choose a model in Settings) to make this permanent.` : undefined,
         });
       else if (ac.signal.aborted) patch(aid, { streaming: false, note: "Stopped." });
-      else offline(`${PROVIDERS[conn.provider].name} could not be reached (${r.error}). This answer was composed from the graph instead.`);
+      else offline(local ? `${r.error} This answer is composed from the graph instead; choose a 1B+ model in Settings for written prose.` : `${PROVIDERS[conn.provider].name} could not be reached (${r.error}). This answer was composed from the graph instead.`, true);
       abortRef.current = null;
     }
     setBusy(false);
@@ -197,7 +199,7 @@ export function GraphRagChatbot({ onClose }: { onClose: () => void }) {
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line pl-4 pr-2">
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-semibold leading-5 text-text">Ask</div>
-          <div className="truncate text-[12px] text-text-3">{conn ? `${PROVIDERS[conn.provider].name}, ${conn.model}` : "Offline: answers are composed from the graph"}</div>
+          <div className="truncate text-[12px] text-text-3">{connLabel}</div>
         </div>
         {messages.length > 0 && (
           <button className="btn btn-ghost btn-icon" title="Clear conversation" aria-label="Clear conversation" onClick={() => (setMessages(() => []), setHighlight(null))}>
@@ -337,7 +339,7 @@ export function GraphRagChatbot({ onClose }: { onClose: () => void }) {
         </div>
         <p className="mt-2 px-1 text-[11.5px] leading-4 text-text-3">
           A contemplative companion, not a substitute for professional care.{" "}
-          {conn ? `Your question, the last few messages and the retrieved verses are sent to ${PROVIDERS[conn.provider].name}. Your saved thoughts are not.` : "Answers are composed in this browser; nothing is sent."}
+          {conn ? (local ? `Answers are written by ${modelLabel(conn.provider, conn.model)} on this device; nothing is sent anywhere.` : `Your question, the last few messages and the retrieved verses are sent to ${PROVIDERS[conn.provider].name}. Your saved thoughts are not.`) : "Answers are composed in this browser; nothing is sent."}
         </p>
       </div>
     </div>

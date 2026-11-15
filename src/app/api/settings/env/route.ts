@@ -15,6 +15,11 @@ export async function GET(req: Request) {
   const providers = {} as Record<ProviderId, { configured: boolean; source: string | null; masked: string | null; model: string | null; baseUrl?: string | null }>;
   for (const id of PROVIDER_ORDER) {
     const p = PROVIDERS[id];
+    // Models that run in the browser have no server-side key or configuration.
+    if (p.local) {
+      providers[id] = { configured: false, source: null, masked: null, model: null };
+      continue;
+    }
     const key = shared && p.envKey ? process.env[p.envKey]?.trim() : undefined;
     providers[id] = {
       configured: p.envKey ? !!key : shared && !!process.env.OLLAMA_BASE_URL?.trim(),
@@ -53,6 +58,7 @@ export async function POST(req: Request) {
   if (!allowed.allowed) return NextResponse.json({ written: false, reason: allowed.reason });
 
   const p = PROVIDERS[body.provider];
+  if (p.local) return NextResponse.json({ written: false, reason: "This model runs in the browser; there is nothing to save on the server." });
   const updates: Record<string, string | null> = {};
   if (body.apiKey !== undefined && p.envKey) {
     const k = String(body.apiKey).trim();
